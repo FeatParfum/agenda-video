@@ -17,7 +17,7 @@ export default async function LoginPage({
 
   return (
     <div
-      className="relative flex-1 flex items-center justify-center lg:items-start lg:justify-start bg-bege bg-cover bg-center bg-no-repeat px-4 py-10 sm:px-8 lg:px-[6%] lg:pt-[26vh]"
+      className="relative flex-1 flex items-start justify-center lg:items-start lg:justify-start bg-bege bg-cover bg-center bg-no-repeat px-4 pt-32 pb-10 sm:px-8 sm:pt-36 lg:px-[6%] lg:pt-[26vh]"
       style={{ backgroundImage: "url(/login-bg.svg)" }}
     >
       <div className="w-full max-w-md">
