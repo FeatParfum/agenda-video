@@ -96,10 +96,10 @@ export async function createBookingAction(formData: FormData) {
     briefing,
   });
 
-  revalidatePath(`/quarta/${weekDate}`);
+  revalidatePath(`/terca/${weekDate}`);
   revalidatePath("/");
   revalidatePath("/admin");
-  redirect(`/quarta/${weekDate}?reservado=${booking.id}`);
+  redirect(`/terca/${weekDate}?reservado=${booking.id}`);
 }
 
 export async function createExtraBookingAction(formData: FormData) {
@@ -121,7 +121,7 @@ export async function createExtraBookingAction(formData: FormData) {
   });
 
   revalidatePath("/minhas-reservas");
-  revalidatePath(`/admin/quarta/${weekDate}`);
+  revalidatePath(`/admin/terca/${weekDate}`);
   redirect("/minhas-reservas?extra=1");
 }
 
@@ -151,8 +151,8 @@ export async function cancelBookingAction(formData: FormData) {
   await deleteBooking(bookingId);
 
   if (week) {
-    revalidatePath(`/quarta/${week.date}`);
-    revalidatePath(`/admin/quarta/${week.date}`);
+    revalidatePath(`/terca/${week.date}`);
+    revalidatePath(`/admin/terca/${week.date}`);
   }
   revalidatePath("/minhas-reservas");
   revalidatePath("/");
@@ -195,7 +195,7 @@ export async function toggleBlockWeekAction(formData: FormData) {
   await setWeekBlocked(weekDate, blocked, reason);
   revalidatePath("/admin");
   revalidatePath("/");
-  revalidatePath(`/quarta/${weekDate}`);
+  revalidatePath(`/terca/${weekDate}`);
   redirect("/admin");
 }
 
@@ -204,8 +204,8 @@ export async function toggleBlockWeekAction(formData: FormData) {
 export async function reorderAction(weekId: string, weekDate: string, orderedIds: string[]) {
   await requireAdmin();
   await reorderAndSchedule(weekId, orderedIds);
-  revalidatePath(`/admin/quarta/${weekDate}`);
-  revalidatePath(`/quarta/${weekDate}`);
+  revalidatePath(`/admin/terca/${weekDate}`);
+  revalidatePath(`/terca/${weekDate}`);
   revalidatePath("/");
 }
 
@@ -217,9 +217,9 @@ export async function setVideoLinkAction(formData: FormData) {
   const weekDate = String(formData.get("weekDate") || "");
   const link = String(formData.get("videoLink") || "").trim();
   await setBookingVideoLink(bookingId, link);
-  revalidatePath(`/admin/quarta/${weekDate}`);
+  revalidatePath(`/admin/terca/${weekDate}`);
   revalidatePath("/minhas-reservas");
-  redirect(`/admin/quarta/${weekDate}`);
+  redirect(`/admin/terca/${weekDate}`);
 }
 
 // ---------- Admin: equipe ----------

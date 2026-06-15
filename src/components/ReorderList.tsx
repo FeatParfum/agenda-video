@@ -219,7 +219,7 @@ function SortableItem({
           <div className="mt-2">
             <CancelBookingButton
               bookingId={booking.id}
-              redirectTo={`/admin/quarta/${weekDate}`}
+              redirectTo={`/admin/terca/${weekDate}`}
               label="Remover reserva"
               confirmMessage={`Remover a reserva de ${booking.team_member_name}? Essa ação não pode ser desfeita.`}
             />

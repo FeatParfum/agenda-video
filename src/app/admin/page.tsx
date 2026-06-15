@@ -51,7 +51,7 @@ export default async function AdminPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={badge.tone}>{badge.label}</Badge>
-                  <LinkButton href={`/admin/quarta/${date}`} variant="secondary">
+                  <LinkButton href={`/admin/terca/${date}`} variant="secondary">
                     Gerenciar
                   </LinkButton>
                 </div>

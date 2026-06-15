@@ -32,7 +32,7 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ da
               ? "O Nathan está indisponível nesta semana."
               : "O prazo de agendamento (segunda-feira às 12h) já encerrou."}
           </p>
-          <Link href={`/quarta/${data}`} className="inline-block mt-4 text-laranja font-semibold hover:underline">
+          <Link href={`/terca/${data}`} className="inline-block mt-4 text-laranja font-semibold hover:underline">
             ← Voltar
           </Link>
         </Card>
@@ -43,7 +43,7 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ da
   return (
     <div className="mx-auto max-w-2xl w-full px-4 sm:px-6 py-8 sm:py-12">
       <p className="text-sm mb-2">
-        <Link href={`/quarta/${data}`} className="text-laranja font-semibold hover:underline">
+        <Link href={`/terca/${data}`} className="text-laranja font-semibold hover:underline">
           ← Voltar
         </Link>
       </p>

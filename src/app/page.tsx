@@ -82,7 +82,7 @@ export default async function HomePage({
             }
 
             return (
-              <Link key={date} href={`/quarta/${date}`} className="block">
+              <Link key={date} href={`/terca/${date}`} className="block">
                 <Card className="p-5 h-full hover:border-laranja transition-colors">
                   <div className="flex items-start justify-between gap-2">
                     <div>

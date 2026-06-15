@@ -45,7 +45,7 @@ export default async function MinhasReservasPage({
               <Card key={b.id} className="p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <Link href={`/quarta/${b.weekDate}`} className="font-semibold text-preto hover:text-laranja capitalize">
+                    <Link href={`/terca/${b.weekDate}`} className="font-semibold text-preto hover:text-laranja capitalize">
                       {formatDateFull(b.weekDate)}
                     </Link>
                     <p className="text-sm text-[#7a716a] mt-0.5">
@@ -92,7 +92,7 @@ export default async function MinhasReservasPage({
 
                 {happened && (
                   <div className="mt-3">
-                    <LinkButton href={`/quarta/${b.weekDate}/agendar-extra`} variant="ghost" className="text-xs px-3 py-1.5">
+                    <LinkButton href={`/terca/${b.weekDate}/agendar-extra`} variant="ghost" className="text-xs px-3 py-1.5">
                       Registrar vídeo extra gravado nesta sessão
                     </LinkButton>
                   </div>

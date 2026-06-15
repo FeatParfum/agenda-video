@@ -60,7 +60,7 @@ export default async function AdminWeekPage({ params }: { params: Promise<{ data
       <div className="flex items-center justify-between mb-3 gap-2">
         <h2 className="font-display text-lg text-preto">Reservas e ordem de gravação</h2>
         {bookings.length > 0 && (
-          <LinkButton href={`/admin/quarta/${data}/relatorio`} variant="secondary" className="text-sm shrink-0">
+          <LinkButton href={`/admin/terca/${data}/relatorio`} variant="secondary" className="text-sm shrink-0">
             Baixar relatório (CSV)
           </LinkButton>
         )}
@@ -68,7 +68,7 @@ export default async function AdminWeekPage({ params }: { params: Promise<{ data
       <ReorderList bookings={bookings} weekId={week.id} weekDate={data} startTime={week.start_time} />
 
       <p className="text-sm mt-6">
-        <Link href={`/quarta/${data}`} className="text-laranja font-semibold hover:underline">
+        <Link href={`/terca/${data}`} className="text-laranja font-semibold hover:underline">
           Ver como os usuários veem esta semana →
         </Link>
       </p>

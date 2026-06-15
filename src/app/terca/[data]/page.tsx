@@ -101,7 +101,7 @@ export default async function WeekDetailPage({
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-display text-lg text-preto">Reservas desta semana</h2>
         {canBook && (
-          <LinkButton href={`/quarta/${data}/agendar`} variant="primary">
+          <LinkButton href={`/terca/${data}/agendar`} variant="primary">
             Solicitar gravação
           </LinkButton>
         )}
@@ -152,7 +152,7 @@ export default async function WeekDetailPage({
                 <div className="mt-2">
                   <CancelBookingButton
                     bookingId={b.id}
-                    redirectTo={`/quarta/${data}`}
+                    redirectTo={`/terca/${data}`}
                     label={user.role === "admin" && b.team_member_id !== user.id ? "Remover reserva" : "Cancelar reserva"}
                     confirmMessage={
                       user.role === "admin" && b.team_member_id !== user.id
@@ -169,7 +169,7 @@ export default async function WeekDetailPage({
 
       {user.role === "admin" && (
         <div className="mt-6">
-          <LinkButton href={`/admin/quarta/${data}`} variant="secondary">
+          <LinkButton href={`/admin/terca/${data}`} variant="secondary">
             Gerenciar esta semana (admin)
           </LinkButton>
         </div>
