@@ -4,7 +4,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_START_TIME, DEFAULT_END_TIME, computeSchedule } from "./scheduling";
 
-const LOCAL_DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "app.db");
+// Em ambientes serverless (Vercel) o filesystem do projeto é somente leitura;
+// apenas /tmp é gravável. Sem TURSO configurado, usamos /tmp como fallback.
+const LOCAL_DB_PATH =
+  process.env.DB_PATH ||
+  (process.env.VERCEL ? "/tmp/app.db" : path.join(process.cwd(), "data", "app.db"));
 
 // Em produção, defina TURSO_DATABASE_URL e TURSO_AUTH_TOKEN (banco Turso/libSQL)
 // para ter dados persistentes e compartilhados entre todas as instâncias.
