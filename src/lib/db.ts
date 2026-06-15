@@ -1,0 +1,432 @@
+import { createClient, type Client } from "@libsql/client";
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { DEFAULT_START_TIME, DEFAULT_END_TIME, computeSchedule } from "./scheduling";
+
+const LOCAL_DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "data", "app.db");
+
+// Em produção, defina TURSO_DATABASE_URL e TURSO_AUTH_TOKEN (banco Turso/libSQL)
+// para ter dados persistentes e compartilhados entre todas as instâncias.
+// Sem essas variáveis, usa um arquivo SQLite local (bom para desenvolvimento).
+const DB_URL = process.env.TURSO_DATABASE_URL || `file:${LOCAL_DB_PATH}`;
+const DB_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+
+const globalForDb = globalThis as unknown as {
+  __db?: Client;
+  __dbInit?: Promise<void>;
+};
+
+function getClient(): Client {
+  if (!globalForDb.__db) {
+    if (!process.env.TURSO_DATABASE_URL) {
+      const dir = path.dirname(LOCAL_DB_PATH);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    }
+    globalForDb.__db = createClient({ url: DB_URL, authToken: DB_AUTH_TOKEN });
+  }
+  return globalForDb.__db;
+}
+
+async function init(): Promise<void> {
+  const db = getClient();
+
+  await db.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS team_members (
+      id TEXT PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS weeks (
+      id TEXT PRIMARY KEY,
+      date TEXT UNIQUE NOT NULL,
+      is_blocked INTEGER NOT NULL DEFAULT 0,
+      block_reason TEXT,
+      start_time TEXT NOT NULL DEFAULT '${DEFAULT_START_TIME}',
+      end_time TEXT NOT NULL DEFAULT '${DEFAULT_END_TIME}'
+    );
+
+    CREATE TABLE IF NOT EXISTS bookings (
+      id TEXT PRIMARY KEY,
+      week_id TEXT NOT NULL REFERENCES weeks(id) ON DELETE CASCADE,
+      team_member_id TEXT NOT NULL REFERENCES team_members(id),
+      "order" INTEGER NOT NULL DEFAULT 0,
+      duration_min INTEGER NOT NULL,
+      suggested_time TEXT,
+      start_time TEXT,
+      end_time TEXT,
+      status TEXT NOT NULL DEFAULT 'pendente',
+      is_extra INTEGER NOT NULL DEFAULT 0,
+      video_link TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS briefings (
+      id TEXT PRIMARY KEY,
+      booking_id TEXT UNIQUE NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      video_count INTEGER NOT NULL,
+      theme TEXT NOT NULL,
+      subjects TEXT NOT NULL,
+      requester TEXT NOT NULL,
+      logo TEXT NOT NULL,
+      music_style TEXT NOT NULL,
+      tone TEXT NOT NULL,
+      extra_notes TEXT,
+      script_links TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS recording_reports (
+      id TEXT PRIMARY KEY,
+      booking_id TEXT UNIQUE NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+      team_member_id TEXT NOT NULL REFERENCES team_members(id),
+      all_recorded INTEGER NOT NULL,
+      notes TEXT,
+      submitted_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  // seed do admin
+  const existing = await db.execute({
+    sql: "SELECT id FROM team_members WHERE name = ?",
+    args: ["Tuzuki"],
+  });
+  if (existing.rows.length === 0) {
+    await db.execute({
+      sql: "INSERT INTO team_members (id, name, role) VALUES (?, ?, ?)",
+      args: [randomUUID(), "Tuzuki", "admin"],
+    });
+  }
+}
+
+async function getDb(): Promise<Client> {
+  if (!globalForDb.__dbInit) {
+    globalForDb.__dbInit = init();
+  }
+  await globalForDb.__dbInit;
+  return getClient();
+}
+
+// ---------- Tipos ----------
+
+export type TeamMember = {
+  id: string;
+  name: string;
+  role: string;
+  active: number;
+  created_at: string;
+};
+
+export type Week = {
+  id: string;
+  date: string;
+  is_blocked: number;
+  block_reason: string | null;
+  start_time: string;
+  end_time: string;
+};
+
+export type Briefing = {
+  id: string;
+  booking_id: string;
+  video_count: number;
+  theme: string;
+  subjects: string;
+  requester: string;
+  logo: string;
+  music_style: string;
+  tone: string;
+  extra_notes: string | null;
+  script_links: string;
+  created_at: string;
+};
+
+export type RecordingReport = {
+  id: string;
+  booking_id: string;
+  team_member_id: string;
+  all_recorded: number;
+  notes: string | null;
+  submitted_at: string;
+};
+
+export type Booking = {
+  id: string;
+  week_id: string;
+  team_member_id: string;
+  order: number;
+  duration_min: number;
+  suggested_time: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  status: string;
+  is_extra: number;
+  video_link: string | null;
+  created_at: string;
+  team_member_name?: string;
+  briefing?: Briefing | null;
+  report?: RecordingReport | null;
+};
+
+// ---------- Team members ----------
+
+export async function listTeamMembers(onlyActive = true): Promise<TeamMember[]> {
+  const db = await getDb();
+  const sql = onlyActive
+    ? "SELECT * FROM team_members WHERE active = 1 ORDER BY name"
+    : "SELECT * FROM team_members ORDER BY name";
+  const res = await db.execute(sql);
+  return res.rows as unknown as TeamMember[];
+}
+
+export async function getTeamMemberById(id: string): Promise<TeamMember | undefined> {
+  const db = await getDb();
+  const res = await db.execute({ sql: "SELECT * FROM team_members WHERE id = ?", args: [id] });
+  return (res.rows[0] as unknown as TeamMember) ?? undefined;
+}
+
+export async function createTeamMember(name: string, role: "member" | "admin" = "member"): Promise<TeamMember> {
+  const db = await getDb();
+  const id = randomUUID();
+  await db.execute({
+    sql: "INSERT INTO team_members (id, name, role) VALUES (?, ?, ?)",
+    args: [id, name.trim(), role],
+  });
+  return (await getTeamMemberById(id))!;
+}
+
+export async function setTeamMemberActive(id: string, active: boolean) {
+  const db = await getDb();
+  await db.execute({ sql: "UPDATE team_members SET active = ? WHERE id = ?", args: [active ? 1 : 0, id] });
+}
+
+export async function setTeamMemberRole(id: string, role: "member" | "admin") {
+  const db = await getDb();
+  await db.execute({ sql: "UPDATE team_members SET role = ? WHERE id = ?", args: [role, id] });
+}
+
+// ---------- Weeks ----------
+
+export async function getWeekByDate(date: string): Promise<Week | undefined> {
+  const db = await getDb();
+  const res = await db.execute({ sql: "SELECT * FROM weeks WHERE date = ?", args: [date] });
+  return (res.rows[0] as unknown as Week) ?? undefined;
+}
+
+export async function getOrCreateWeek(date: string): Promise<Week> {
+  const existing = await getWeekByDate(date);
+  if (existing) return existing;
+  const db = await getDb();
+  const id = randomUUID();
+  await db.execute({
+    sql: "INSERT INTO weeks (id, date, start_time, end_time) VALUES (?, ?, ?, ?)",
+    args: [id, date, DEFAULT_START_TIME, DEFAULT_END_TIME],
+  });
+  return (await getWeekByDate(date))!;
+}
+
+export async function setWeekBlocked(date: string, blocked: boolean, reason?: string) {
+  const week = await getOrCreateWeek(date);
+  const db = await getDb();
+  await db.execute({
+    sql: "UPDATE weeks SET is_blocked = ?, block_reason = ? WHERE id = ?",
+    args: [blocked ? 1 : 0, reason ?? null, week.id],
+  });
+}
+
+export async function getWeeksBookedMinutes(
+  dates: string[]
+): Promise<Record<string, { booked: number; blocked: boolean; total: number; count: number }>> {
+  const db = await getDb();
+  const result: Record<string, { booked: number; blocked: boolean; total: number; count: number }> = {};
+  for (const date of dates) {
+    const week = await getWeekByDate(date);
+    if (!week) {
+      result[date] = { booked: 0, blocked: false, total: 270, count: 0 };
+      continue;
+    }
+    const res = await db.execute({ sql: "SELECT duration_min FROM bookings WHERE week_id = ?", args: [week.id] });
+    const rows = res.rows as unknown as { duration_min: number }[];
+    const booked = rows.reduce((acc, r) => acc + r.duration_min, 0);
+    const total = timeToMin(week.end_time) - timeToMin(week.start_time);
+    result[date] = { booked, blocked: !!week.is_blocked, total, count: rows.length };
+  }
+  return result;
+}
+
+function timeToMin(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// ---------- Bookings ----------
+
+async function attachRelations(db: Client, booking: Booking): Promise<Booking> {
+  const memberRes = await db.execute({
+    sql: "SELECT name FROM team_members WHERE id = ?",
+    args: [booking.team_member_id],
+  });
+  const member = memberRes.rows[0] as unknown as { name: string } | undefined;
+  booking.team_member_name = member?.name;
+
+  const briefingRes = await db.execute({ sql: "SELECT * FROM briefings WHERE booking_id = ?", args: [booking.id] });
+  booking.briefing = (briefingRes.rows[0] as unknown as Briefing | undefined) ?? null;
+
+  const reportRes = await db.execute({
+    sql: "SELECT * FROM recording_reports WHERE booking_id = ?",
+    args: [booking.id],
+  });
+  booking.report = (reportRes.rows[0] as unknown as RecordingReport | undefined) ?? null;
+
+  return booking;
+}
+
+export async function listBookingsForWeek(weekId: string): Promise<Booking[]> {
+  const db = await getDb();
+  const res = await db.execute({
+    sql: 'SELECT * FROM bookings WHERE week_id = ? ORDER BY "order" ASC, created_at ASC',
+    args: [weekId],
+  });
+  const rows = res.rows as unknown as Booking[];
+  const result: Booking[] = [];
+  for (const row of rows) {
+    result.push(await attachRelations(db, row));
+  }
+  return result;
+}
+
+export async function getBookingById(id: string): Promise<Booking | undefined> {
+  const db = await getDb();
+  const res = await db.execute({ sql: "SELECT * FROM bookings WHERE id = ?", args: [id] });
+  const row = res.rows[0] as unknown as Booking | undefined;
+  return row ? await attachRelations(db, row) : undefined;
+}
+
+export async function listBookingsForMember(
+  teamMemberId: string
+): Promise<(Booking & { weekDate: string })[]> {
+  const db = await getDb();
+  const res = await db.execute({
+    sql: `SELECT b.* FROM bookings b
+       JOIN weeks w ON w.id = b.week_id
+       WHERE b.team_member_id = ?
+       ORDER BY w.date DESC, b."order" ASC`,
+    args: [teamMemberId],
+  });
+  const rows = res.rows as unknown as Booking[];
+  const result: (Booking & { weekDate: string })[] = [];
+  for (const row of rows) {
+    const withRelations = await attachRelations(db, row);
+    const weekRes = await db.execute({ sql: "SELECT * FROM weeks WHERE id = ?", args: [row.week_id] });
+    const week = weekRes.rows[0] as unknown as Week;
+    result.push({ ...withRelations, weekDate: week.date });
+  }
+  return result;
+}
+
+export type BriefingInput = {
+  videoCount: number;
+  theme: string;
+  subjects: string;
+  requester: string;
+  logo: string;
+  musicStyle: string;
+  tone: string;
+  extraNotes?: string;
+  scriptLinks: string;
+};
+
+export async function createBooking(params: {
+  weekDate: string;
+  teamMemberId: string;
+  durationMin: number;
+  suggestedTime?: string;
+  isExtra?: boolean;
+  briefing: BriefingInput;
+}): Promise<Booking> {
+  const db = await getDb();
+  const week = await getOrCreateWeek(params.weekDate);
+  const maxOrderRes = await db.execute({
+    sql: 'SELECT COALESCE(MAX("order"), -1) as m FROM bookings WHERE week_id = ?',
+    args: [week.id],
+  });
+  const maxOrder = maxOrderRes.rows[0] as unknown as { m: number };
+
+  const id = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO bookings (id, week_id, team_member_id, "order", duration_min, suggested_time, status, is_extra)
+     VALUES (?, ?, ?, ?, ?, ?, 'pendente', ?)`,
+    args: [
+      id,
+      week.id,
+      params.teamMemberId,
+      Number(maxOrder.m) + 1,
+      params.durationMin,
+      params.suggestedTime ?? null,
+      params.isExtra ? 1 : 0,
+    ],
+  });
+
+  const b = params.briefing;
+  await db.execute({
+    sql: `INSERT INTO briefings (id, booking_id, video_count, theme, subjects, requester, logo, music_style, tone, extra_notes, script_links)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      randomUUID(),
+      id,
+      b.videoCount,
+      b.theme,
+      b.subjects,
+      b.requester,
+      b.logo,
+      b.musicStyle,
+      b.tone,
+      b.extraNotes ?? null,
+      b.scriptLinks,
+    ],
+  });
+
+  return (await getBookingById(id))!;
+}
+
+/** Recalcula horários sequenciais de acordo com a ordem e marca como confirmados. */
+export async function reorderAndSchedule(weekId: string, orderedBookingIds: string[]) {
+  const db = await getDb();
+  const weekRes = await db.execute({ sql: "SELECT * FROM weeks WHERE id = ?", args: [weekId] });
+  const week = weekRes.rows[0] as unknown as Week;
+  const bookings = await listBookingsForWeek(weekId);
+  const byId = new Map(bookings.map((b) => [b.id, b]));
+
+  const items = orderedBookingIds.map((id) => ({ id, durationMin: byId.get(id)?.duration_min ?? 0 }));
+  const schedule = computeSchedule(items, week.start_time);
+
+  for (const [idx, s] of schedule.entries()) {
+    await db.execute({
+      sql: `UPDATE bookings SET "order" = ?, start_time = ?, end_time = ?, status = 'confirmado' WHERE id = ?`,
+      args: [idx, s.startTime, s.endTime, s.id],
+    });
+  }
+}
+
+export async function setBookingVideoLink(bookingId: string, link: string) {
+  const db = await getDb();
+  await db.execute({ sql: "UPDATE bookings SET video_link = ? WHERE id = ?", args: [link, bookingId] });
+}
+
+export async function createRecordingReport(params: {
+  bookingId: string;
+  teamMemberId: string;
+  allRecorded: boolean;
+  notes?: string;
+}) {
+  const db = await getDb();
+  await db.execute({
+    sql: `INSERT INTO recording_reports (id, booking_id, team_member_id, all_recorded, notes)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(booking_id) DO UPDATE SET all_recorded = excluded.all_recorded, notes = excluded.notes, submitted_at = datetime('now')`,
+    args: [randomUUID(), params.bookingId, params.teamMemberId, params.allRecorded ? 1 : 0, params.notes ?? null],
+  });
+}
