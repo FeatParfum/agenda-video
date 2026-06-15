@@ -29,7 +29,7 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ da
           <p className="font-semibold text-preto">Não é possível agendar para esta semana.</p>
           <p className="text-sm text-[#7a716a] mt-1">
             {week.is_blocked
-              ? "O videomaker está indisponível nesta semana."
+              ? "O Nathan está indisponível nesta semana."
               : "O prazo de agendamento (segunda-feira às 12h) já encerrou."}
           </p>
           <Link href={`/quarta/${data}`} className="inline-block mt-4 text-laranja font-semibold hover:underline">

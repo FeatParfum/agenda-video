@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getWeeksBookedMinutes, listTeamMembers } from "@/lib/db";
-import { getUpcomingWednesdays, isBookingOpen, recordingHappened, formatDateFull } from "@/lib/scheduling";
+import { getUpcomingTuesdays, isBookingOpen, recordingHappened, formatDateFull } from "@/lib/scheduling";
 import {
   addTeamMemberAction,
   toggleBlockWeekAction,
@@ -16,8 +16,8 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/");
 
-  const wednesdays = getUpcomingWednesdays(8);
-  const summaries = await getWeeksBookedMinutes(wednesdays);
+  const tuesdays = getUpcomingTuesdays(8);
+  const summaries = await getWeeksBookedMinutes(tuesdays);
   const members = await listTeamMembers(false);
 
   return (
@@ -29,7 +29,7 @@ export default async function AdminPage() {
 
       <h2 className="font-display text-lg text-preto mb-3">Próximas semanas</h2>
       <div className="flex flex-col gap-3 mb-10">
-        {wednesdays.map((date) => {
+        {tuesdays.map((date) => {
           const summary = summaries[date];
           const open = isBookingOpen(date);
           const happened = recordingHappened(date);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui";
 import { addMinutesToTime } from "@/lib/scheduling";
@@ -62,12 +62,23 @@ export default function BriefingWizard({
     [suggestedStart, durationMin]
   );
   const remaining = Math.max(0, totalMinutes - bookedMinutes);
+  const maxDuration = isExtra ? undefined : remaining;
+
+  useEffect(() => {
+    if (maxDuration !== undefined && maxDuration > 0 && durationMin > maxDuration) {
+      setDurationMin(maxDuration);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxDuration]);
 
   const steps = [
     {
       title: "Sobre a gravação",
       description: "Conte o básico para reservarmos o tempo certo na agenda do videomaker.",
-      valid: durationMin >= 5 && videoCount >= 1,
+      valid:
+        durationMin >= 5 &&
+        videoCount >= 1 &&
+        (maxDuration === undefined || (maxDuration > 0 && durationMin <= maxDuration)),
     },
     {
       title: "Conteúdo do vídeo",
@@ -139,28 +150,38 @@ export default function BriefingWizard({
               Duração estimada da gravação (minutos)
             </label>
             <div className="flex flex-wrap gap-2 mb-2">
-              {DURATION_SUGESTOES.map((d) => (
-                <button
-                  type="button"
-                  key={d}
-                  onClick={() => setDurationMin(d)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold border transition-colors ${
-                    durationMin === d
-                      ? "bg-laranja text-white border-laranja"
-                      : "border-[#ece3d8] text-preto hover:bg-bege"
-                  }`}
-                >
-                  {d} min
-                </button>
-              ))}
+              {DURATION_SUGESTOES.map((d) => {
+                const disabled = maxDuration !== undefined && d > maxDuration;
+                return (
+                  <button
+                    type="button"
+                    key={d}
+                    disabled={disabled}
+                    onClick={() => setDurationMin(d)}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold border transition-colors ${
+                      disabled
+                        ? "border-[#ece3d8] text-[#c9c0b8] cursor-not-allowed"
+                        : durationMin === d
+                        ? "bg-laranja text-white border-laranja"
+                        : "border-[#ece3d8] text-preto hover:bg-bege"
+                    }`}
+                  >
+                    {d} min
+                  </button>
+                );
+              })}
             </div>
             <input
               type="number"
               name="durationMin"
               min={5}
+              max={maxDuration}
               step={5}
               value={durationMin}
-              onChange={(e) => setDurationMin(Math.max(5, Number(e.target.value) || 5))}
+              onChange={(e) => {
+                const val = Math.max(5, Number(e.target.value) || 5);
+                setDurationMin(maxDuration !== undefined ? Math.min(val, Math.max(maxDuration, 5)) : val);
+              }}
               className="w-32 rounded-xl border border-[#ece3d8] px-4 py-2.5 focus:border-laranja focus:outline-none"
             />
           </div>
@@ -174,6 +195,16 @@ export default function BriefingWizard({
                 Tempo disponível na semana: {remaining} min. O administrador confirma e organiza
                 o horário definitivo até segunda-feira.
               </p>
+              {remaining <= 0 && (
+                <p className="mt-1 text-xs font-semibold text-vermelho">
+                  Não há mais tempo disponível nesta semana. Escolha outra data.
+                </p>
+              )}
+              {remaining > 0 && durationMin > remaining && (
+                <p className="mt-1 text-xs font-semibold text-vermelho">
+                  Só restam {remaining} min nesta semana — reduza a duração.
+                </p>
+              )}
             </div>
           )}
         </div>

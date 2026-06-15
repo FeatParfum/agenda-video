@@ -101,13 +101,20 @@ async function init(): Promise<void> {
     // coluna já existe — ignora
   }
 
+  // migração: corrige nome "Camilla" -> "Camila" em bancos já existentes
+  try {
+    await db.execute("UPDATE team_members SET name = 'Camila' WHERE id = 'seed-camilla' AND name = 'Camilla'");
+  } catch {
+    // ignora
+  }
+
   // seed da equipe: IDs fixos para que as sessões (cookie) continuem válidas
   // mesmo em instâncias serverless diferentes (cada uma com seu /tmp/app.db).
   const seedMembers: { id: string; name: string; role: "admin" | "member"; password?: string }[] = [
     { id: "seed-tuzuki", name: "Tuzuki", role: "admin", password: "@01Nutella" },
     { id: "seed-grace-botelho", name: "Grace Botelho", role: "member" },
     { id: "seed-joao-vitor", name: "João Vitor", role: "member" },
-    { id: "seed-camilla", name: "Camilla", role: "member" },
+    { id: "seed-camilla", name: "Camila", role: "member" },
     { id: "seed-dino", name: "Dino", role: "member" },
     { id: "seed-gabriela-airy", name: "Gabriela Airy", role: "member" },
     { id: "seed-gabriela-lima", name: "Gabriela Lima", role: "member" },

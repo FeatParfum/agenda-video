@@ -71,7 +71,7 @@ export default async function WeekDetailPage({
 
       {week.is_blocked && (
         <Card className="p-5 mb-6 bg-[#fde6e0] border-[#f7c6bb]">
-          <p className="font-semibold text-vermelho">Videomaker indisponível nesta semana.</p>
+          <p className="font-semibold text-vermelho">Nathan indisponível nesta semana.</p>
           {week.block_reason && <p className="text-sm text-[#7a716a] mt-1">{week.block_reason}</p>}
         </Card>
       )}
@@ -90,7 +90,7 @@ export default async function WeekDetailPage({
           </div>
           {!happened && (
             <p className="mt-3 text-xs text-[#7a716a]">
-              Agendamentos e alterações para esta quarta podem ser feitos até{" "}
+              Agendamentos e alterações para esta terça podem ser feitos até{" "}
               <strong>segunda-feira, {deadline.toLocaleDateString("pt-BR")} às 12h</strong>.
             </p>
           )}

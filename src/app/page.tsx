@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getWeeksBookedMinutes } from "@/lib/db";
 import {
-  getWednesdaysOfMonth,
+  getTuesdaysOfMonth,
   isBookingOpen,
   recordingHappened,
   formatDateFull,
@@ -24,8 +24,8 @@ export default async function HomePage({
   const year = Number(params.ano) || now.getFullYear();
   const month = Number(params.mes) || now.getMonth() + 1;
 
-  const wednesdays = getWednesdaysOfMonth(year, month);
-  const summaries = await getWeeksBookedMinutes(wednesdays);
+  const tuesdays = getTuesdaysOfMonth(year, month);
+  const summaries = await getWeeksBookedMinutes(tuesdays);
 
   let prevYear = year, prevMonth = month - 1;
   if (prevMonth < 1) { prevMonth = 12; prevYear -= 1; }
@@ -36,7 +36,7 @@ export default async function HomePage({
     <div className="mx-auto max-w-5xl w-full px-4 sm:px-6 py-8 sm:py-12">
       <PageHeader
         title="Calendário de gravações"
-        subtitle="O videomaker grava às quartas-feiras, das 13:30 às 18:00."
+        subtitle="O Nathan grava às terças-feiras, das 13h30 às 18h00."
         actions={
           <div className="flex items-center gap-2">
             <Link
@@ -58,11 +58,11 @@ export default async function HomePage({
         }
       />
 
-      {wednesdays.length === 0 ? (
-        <p className="text-sm text-[#7a716a]">Não há quartas-feiras neste mês.</p>
+      {tuesdays.length === 0 ? (
+        <p className="text-sm text-[#7a716a]">Não há terças-feiras neste mês.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {wednesdays.map((date) => {
+          {tuesdays.map((date) => {
             const summary = summaries[date];
             const open = isBookingOpen(date);
             const happened = recordingHappened(date);
@@ -111,7 +111,7 @@ export default async function HomePage({
                   )}
                   {summary.blocked && (
                     <p className="mt-4 text-sm text-[#5b534d]">
-                      Videomaker indisponível nesta semana.
+                      Nathan indisponível nesta semana.
                     </p>
                   )}
                 </Card>
