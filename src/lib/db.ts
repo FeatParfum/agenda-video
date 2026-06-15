@@ -40,6 +40,7 @@ async function init(): Promise<void> {
       id TEXT PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       role TEXT NOT NULL DEFAULT 'member',
+      password TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -93,15 +94,37 @@ async function init(): Promise<void> {
     );
   `);
 
-  // seed do admin
-  const existing = await db.execute({
-    sql: "SELECT id FROM team_members WHERE name = ?",
-    args: ["Tuzuki"],
-  });
-  if (existing.rows.length === 0) {
+  // migração leve: garante que a coluna password existe em bancos antigos
+  try {
+    await db.execute("ALTER TABLE team_members ADD COLUMN password TEXT");
+  } catch {
+    // coluna já existe — ignora
+  }
+
+  // seed da equipe: IDs fixos para que as sessões (cookie) continuem válidas
+  // mesmo em instâncias serverless diferentes (cada uma com seu /tmp/app.db).
+  const seedMembers: { id: string; name: string; role: "admin" | "member"; password?: string }[] = [
+    { id: "seed-tuzuki", name: "Tuzuki", role: "admin", password: "@01Nutella" },
+    { id: "seed-grace-botelho", name: "Grace Botelho", role: "member" },
+    { id: "seed-joao-vitor", name: "João Vitor", role: "member" },
+    { id: "seed-camilla", name: "Camilla", role: "member" },
+    { id: "seed-dino", name: "Dino", role: "member" },
+    { id: "seed-gabriela-airy", name: "Gabriela Airy", role: "member" },
+    { id: "seed-gabriela-lima", name: "Gabriela Lima", role: "member" },
+    { id: "seed-gustavo", name: "Gustavo", role: "member" },
+    { id: "seed-ingrid", name: "Ingrid", role: "member" },
+    { id: "seed-keila", name: "Keila", role: "member" },
+    { id: "seed-madu", name: "Madu", role: "member" },
+    { id: "seed-marcelo", name: "Marcelo", role: "member" },
+    { id: "seed-tabata", name: "Tábata", role: "member" },
+  ];
+
+  for (const m of seedMembers) {
     await db.execute({
-      sql: "INSERT INTO team_members (id, name, role) VALUES (?, ?, ?)",
-      args: [randomUUID(), "Tuzuki", "admin"],
+      sql: `INSERT INTO team_members (id, name, role, password)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET role = excluded.role, password = excluded.password`,
+      args: [m.id, m.name, m.role, m.password ?? null],
     });
   }
 }
@@ -120,6 +143,7 @@ export type TeamMember = {
   id: string;
   name: string;
   role: string;
+  password: string | null;
   active: number;
   created_at: string;
 };

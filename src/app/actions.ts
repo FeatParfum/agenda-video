@@ -27,8 +27,16 @@ export async function loginAction(formData: FormData) {
   const memberId = String(formData.get("memberId") || "");
   const member = await getTeamMemberById(memberId);
   if (!member || !member.active) {
-    throw new Error("Usuário inválido.");
+    redirect("/login?erro=invalido");
   }
+
+  if (member.password) {
+    const password = String(formData.get("password") || "");
+    if (password !== member.password) {
+      redirect(`/login?erro=senha&memberId=${member.id}`);
+    }
+  }
+
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, member.id, {
     httpOnly: true,
