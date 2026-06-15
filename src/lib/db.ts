@@ -1,20 +1,61 @@
-import { createClient, type Client } from "@libsql/client";
-import fs from "node:fs";
-import path from "node:path";
+import { Pool } from "@neondatabase/serverless";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_START_TIME, DEFAULT_END_TIME, computeSchedule } from "./scheduling";
 
-// Em ambientes serverless (Vercel) o filesystem do projeto é somente leitura;
-// apenas /tmp é gravável. Sem TURSO configurado, usamos /tmp como fallback.
-const LOCAL_DB_PATH =
-  process.env.DB_PATH ||
-  (process.env.VERCEL ? "/tmp/app.db" : path.join(process.cwd(), "data", "app.db"));
+// Banco de dados: Postgres (Neon, via integração de Storage da Vercel).
+// As variáveis POSTGRES_URL / DATABASE_URL são adicionadas automaticamente
+// ao projeto pela integração de Storage. Isso garante persistência real e
+// compartilhada entre todas as instâncias serverless (resolve o problema do
+// /tmp/app.db, que era efêmero por instância).
+const DB_URL =
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL;
 
-// Em produção, defina TURSO_DATABASE_URL e TURSO_AUTH_TOKEN (banco Turso/libSQL)
-// para ter dados persistentes e compartilhados entre todas as instâncias.
-// Sem essas variáveis, usa um arquivo SQLite local (bom para desenvolvimento).
-const DB_URL = process.env.TURSO_DATABASE_URL || `file:${LOCAL_DB_PATH}`;
-const DB_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+if (!DB_URL) {
+  throw new Error(
+    "Nenhuma variável de conexão com o banco encontrada (POSTGRES_URL/DATABASE_URL). " +
+      "Configure a integração de Storage (Postgres) no projeto na Vercel."
+  );
+}
+
+type ExecArg = string | { sql: string; args?: unknown[] };
+
+/**
+ * Wrapper fino sobre @neondatabase/serverless que reproduz a interface usada
+ * neste arquivo (baseada em @libsql/client): db.execute(...) -> { rows },
+ * db.executeMultiple(sql) executa várias declarações separadas por ";".
+ * Os placeholders "?" são convertidos para "$1, $2, ..." (sintaxe Postgres).
+ */
+class Client {
+  private pool: Pool;
+
+  constructor(connectionString: string) {
+    this.pool = new Pool({ connectionString });
+  }
+
+  async execute(arg: ExecArg): Promise<{ rows: Record<string, unknown>[] }> {
+    if (typeof arg === "string") {
+      const res = await this.pool.query(arg);
+      return { rows: res.rows as Record<string, unknown>[] };
+    }
+    const { sql, args = [] } = arg;
+    let i = 0;
+    const text = sql.replace(/\?/g, () => `$${++i}`);
+    const res = await this.pool.query(text, args as unknown[]);
+    return { rows: res.rows as Record<string, unknown>[] };
+  }
+
+  async executeMultiple(sql: string): Promise<void> {
+    const statements = sql
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const stmt of statements) {
+      await this.pool.query(stmt);
+    }
+  }
+}
 
 const globalForDb = globalThis as unknown as {
   __db?: Client;
@@ -23,11 +64,7 @@ const globalForDb = globalThis as unknown as {
 
 function getClient(): Client {
   if (!globalForDb.__db) {
-    if (!process.env.TURSO_DATABASE_URL) {
-      const dir = path.dirname(LOCAL_DB_PATH);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    }
-    globalForDb.__db = createClient({ url: DB_URL, authToken: DB_AUTH_TOKEN });
+    globalForDb.__db = new Client(DB_URL!);
   }
   return globalForDb.__db;
 }
@@ -42,7 +79,7 @@ async function init(): Promise<void> {
       role TEXT NOT NULL DEFAULT 'member',
       password TEXT,
       active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (now()::text)
     );
 
     CREATE TABLE IF NOT EXISTS weeks (
@@ -66,7 +103,7 @@ async function init(): Promise<void> {
       status TEXT NOT NULL DEFAULT 'pendente',
       is_extra INTEGER NOT NULL DEFAULT 0,
       video_link TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (now()::text)
     );
 
     CREATE TABLE IF NOT EXISTS briefings (
@@ -81,7 +118,7 @@ async function init(): Promise<void> {
       tone TEXT NOT NULL,
       extra_notes TEXT,
       script_links TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (now()::text)
     );
 
     CREATE TABLE IF NOT EXISTS recording_reports (
@@ -90,26 +127,18 @@ async function init(): Promise<void> {
       team_member_id TEXT NOT NULL REFERENCES team_members(id),
       all_recorded INTEGER NOT NULL,
       notes TEXT,
-      submitted_at TEXT NOT NULL DEFAULT (datetime('now'))
+      submitted_at TEXT NOT NULL DEFAULT (now()::text)
     );
   `);
 
   // migração leve: garante que a coluna password existe em bancos antigos
-  try {
-    await db.execute("ALTER TABLE team_members ADD COLUMN password TEXT");
-  } catch {
-    // coluna já existe — ignora
-  }
+  await db.execute("ALTER TABLE team_members ADD COLUMN IF NOT EXISTS password TEXT");
 
   // migração: corrige nome "Camilla" -> "Camila" em bancos já existentes
-  try {
-    await db.execute("UPDATE team_members SET name = 'Camila' WHERE id = 'seed-camilla' AND name = 'Camilla'");
-  } catch {
-    // ignora
-  }
+  await db.execute("UPDATE team_members SET name = 'Camila' WHERE id = 'seed-camilla' AND name = 'Camilla'");
 
   // seed da equipe: IDs fixos para que as sessões (cookie) continuem válidas
-  // mesmo em instâncias serverless diferentes (cada uma com seu /tmp/app.db).
+  // mesmo em instâncias serverless diferentes.
   const seedMembers: { id: string; name: string; role: "admin" | "member"; password?: string }[] = [
     { id: "seed-tuzuki", name: "Tuzuki", role: "admin", password: "@01Nutella" },
     { id: "seed-grace-botelho", name: "Grace Botelho", role: "member" },
@@ -461,7 +490,7 @@ export async function createRecordingReport(params: {
   await db.execute({
     sql: `INSERT INTO recording_reports (id, booking_id, team_member_id, all_recorded, notes)
      VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(booking_id) DO UPDATE SET all_recorded = excluded.all_recorded, notes = excluded.notes, submitted_at = datetime('now')`,
+     ON CONFLICT(booking_id) DO UPDATE SET all_recorded = excluded.all_recorded, notes = excluded.notes, submitted_at = now()::text`,
     args: [randomUUID(), params.bookingId, params.teamMemberId, params.allRecorded ? 1 : 0, params.notes ?? null],
   });
 }
