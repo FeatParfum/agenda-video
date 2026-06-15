@@ -16,17 +16,11 @@ export default async function LoginPage({
   const members = await listTeamMembers(true);
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-bege px-4 py-12">
+    <div
+      className="relative flex-1 flex items-center justify-center lg:items-start lg:justify-start bg-bege bg-cover bg-center bg-no-repeat px-4 py-10 sm:px-8 lg:px-[6%] lg:pt-[26vh]"
+      style={{ backgroundImage: "url(/login-bg.svg)" }}
+    >
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="font-display text-3xl text-preto tracking-tight">
-            <span className="text-laranja">Agenda</span> de Gravações
-          </h1>
-          <p className="mt-2 text-sm text-[#7a716a]">
-            Selecione seu nome para entrar.
-          </p>
-        </div>
-
         {erro === "senha" && (
           <div className="mb-4 rounded-xl bg-[#fde6e0] border border-[#f7c6bb] px-4 py-3 text-sm text-vermelho text-center">
             Senha incorreta. Tente novamente.

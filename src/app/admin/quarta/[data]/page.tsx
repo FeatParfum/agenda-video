@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getOrCreateWeek, listBookingsForWeek } from "@/lib/db";
 import { windowDurationMinutes, totalBookedMinutes, formatDateFull } from "@/lib/scheduling";
 import { toggleBlockWeekAction } from "@/app/actions";
-import { Badge, Button, Card, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, LinkButton, PageHeader } from "@/components/ui";
 import ReorderList from "@/components/ReorderList";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -57,7 +57,14 @@ export default async function AdminWeekPage({ params }: { params: Promise<{ data
         </form>
       </Card>
 
-      <h2 className="font-display text-lg text-preto mb-3">Reservas e ordem de gravação</h2>
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <h2 className="font-display text-lg text-preto">Reservas e ordem de gravação</h2>
+        {bookings.length > 0 && (
+          <LinkButton href={`/admin/quarta/${data}/relatorio`} variant="secondary" className="text-sm shrink-0">
+            Baixar relatório (CSV)
+          </LinkButton>
+        )}
+      </div>
       <ReorderList bookings={bookings} weekId={week.id} weekDate={data} startTime={week.start_time} />
 
       <p className="text-sm mt-6">

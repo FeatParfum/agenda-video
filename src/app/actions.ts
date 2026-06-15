@@ -5,14 +5,16 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { SESSION_COOKIE } from "@/lib/constants";
 import { requireAdmin, requireUser } from "@/lib/session";
-import { isBookingOpen } from "@/lib/scheduling";
+import { isBookingOpen, recordingHappened } from "@/lib/scheduling";
 import {
   createBooking,
   createRecordingReport,
   createTeamMember,
+  deleteBooking,
   getBookingById,
   getOrCreateWeek,
   getTeamMemberById,
+  getWeekById,
   reorderAndSchedule,
   setBookingVideoLink,
   setTeamMemberActive,
@@ -121,6 +123,41 @@ export async function createExtraBookingAction(formData: FormData) {
   revalidatePath("/minhas-reservas");
   revalidatePath(`/admin/quarta/${weekDate}`);
   redirect("/minhas-reservas?extra=1");
+}
+
+// ---------- Cancelamento de reserva ----------
+
+export async function cancelBookingAction(formData: FormData) {
+  const user = await requireUser();
+  const bookingId = String(formData.get("bookingId") || "");
+  const redirectTo = String(formData.get("redirectTo") || "/minhas-reservas");
+
+  const booking = await getBookingById(bookingId);
+  if (!booking) throw new Error("Reserva não encontrada.");
+
+  const isOwner = booking.team_member_id === user.id;
+  if (!isOwner && user.role !== "admin") {
+    throw new Error("Você não pode cancelar esta reserva.");
+  }
+
+  if (isOwner && user.role !== "admin") {
+    const week = await getWeekById(booking.week_id);
+    if (week && recordingHappened(week.date)) {
+      throw new Error("Não é possível cancelar após o dia da gravação.");
+    }
+  }
+
+  const week = await getWeekById(booking.week_id);
+  await deleteBooking(bookingId);
+
+  if (week) {
+    revalidatePath(`/quarta/${week.date}`);
+    revalidatePath(`/admin/quarta/${week.date}`);
+  }
+  revalidatePath("/minhas-reservas");
+  revalidatePath("/");
+  revalidatePath("/admin");
+  redirect(redirectTo);
 }
 
 // ---------- Relatório pós-gravação ----------

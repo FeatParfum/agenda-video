@@ -5,6 +5,7 @@ import { listBookingsForMember } from "@/lib/db";
 import { recordingHappened, formatDateFull } from "@/lib/scheduling";
 import { Badge, Card, LinkButton, PageHeader } from "@/components/ui";
 import ReportForm from "@/components/ReportForm";
+import CancelBookingButton from "@/components/CancelBookingButton";
 
 export default async function MinhasReservasPage({
   searchParams,
@@ -94,6 +95,12 @@ export default async function MinhasReservasPage({
                     <LinkButton href={`/quarta/${b.weekDate}/agendar-extra`} variant="ghost" className="text-xs px-3 py-1.5">
                       Registrar vídeo extra gravado nesta sessão
                     </LinkButton>
+                  </div>
+                )}
+
+                {!happened && (
+                  <div className="mt-3">
+                    <CancelBookingButton bookingId={b.id} redirectTo="/minhas-reservas" />
                   </div>
                 )}
               </Card>

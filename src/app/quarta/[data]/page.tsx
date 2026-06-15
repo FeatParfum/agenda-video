@@ -11,6 +11,7 @@ import {
   formatDateFull,
 } from "@/lib/scheduling";
 import { Badge, Card, LinkButton, PageHeader } from "@/components/ui";
+import CancelBookingButton from "@/components/CancelBookingButton";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -145,6 +146,21 @@ export default async function WeekDetailPage({
                 >
                   Ver vídeo editado →
                 </a>
+              )}
+
+              {(user.role === "admin" || (b.team_member_id === user.id && !happened)) && (
+                <div className="mt-2">
+                  <CancelBookingButton
+                    bookingId={b.id}
+                    redirectTo={`/quarta/${data}`}
+                    label={user.role === "admin" && b.team_member_id !== user.id ? "Remover reserva" : "Cancelar reserva"}
+                    confirmMessage={
+                      user.role === "admin" && b.team_member_id !== user.id
+                        ? `Remover a reserva de ${b.team_member_name}? Essa ação não pode ser desfeita.`
+                        : "Tem certeza que deseja cancelar esta reserva? Essa ação não pode ser desfeita."
+                    }
+                  />
+                </div>
               )}
             </Card>
           ))}

@@ -480,6 +480,17 @@ export async function setBookingVideoLink(bookingId: string, link: string) {
   await db.execute({ sql: "UPDATE bookings SET video_link = ? WHERE id = ?", args: [link, bookingId] });
 }
 
+export async function getWeekById(id: string): Promise<Week | undefined> {
+  const db = await getDb();
+  const res = await db.execute({ sql: "SELECT * FROM weeks WHERE id = ?", args: [id] });
+  return (res.rows[0] as unknown as Week) ?? undefined;
+}
+
+export async function deleteBooking(bookingId: string): Promise<void> {
+  const db = await getDb();
+  await db.execute({ sql: "DELETE FROM bookings WHERE id = ?", args: [bookingId] });
+}
+
 export async function createRecordingReport(params: {
   bookingId: string;
   teamMemberId: string;

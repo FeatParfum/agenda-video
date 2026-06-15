@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   DndContext,
   closestCenter,
@@ -20,6 +20,7 @@ import type { Booking } from "@/lib/db";
 import { computeSchedule } from "@/lib/scheduling";
 import { Badge, Button } from "@/components/ui";
 import { reorderAction, setVideoLinkAction } from "@/app/actions";
+import CancelBookingButton from "@/components/CancelBookingButton";
 
 export default function ReorderList({
   bookings,
@@ -35,6 +36,10 @@ export default function ReorderList({
   const [items, setItems] = useState(bookings);
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setItems(bookings);
+  }, [bookings]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -210,6 +215,15 @@ function SortableItem({
               Salvar link
             </Button>
           </form>
+
+          <div className="mt-2">
+            <CancelBookingButton
+              bookingId={booking.id}
+              redirectTo={`/admin/quarta/${weekDate}`}
+              label="Remover reserva"
+              confirmMessage={`Remover a reserva de ${booking.team_member_name}? Essa ação não pode ser desfeita.`}
+            />
+          </div>
         </div>
       </div>
     </div>
