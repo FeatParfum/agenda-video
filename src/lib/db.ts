@@ -131,8 +131,10 @@ async function init(): Promise<void> {
     );
   `);
 
-  // migração leve: garante que a coluna password existe em bancos antigos
+  // migrações leves
   await db.execute("ALTER TABLE team_members ADD COLUMN IF NOT EXISTS password TEXT");
+  await db.execute("ALTER TABLE recording_reports ADD COLUMN IF NOT EXISTS missing_details TEXT");
+  await db.execute("ALTER TABLE recording_reports ADD COLUMN IF NOT EXISTS report_type TEXT");
 
   // migração: corrige nome "Camilla" -> "Camila" em bancos já existentes
   await db.execute("UPDATE team_members SET name = 'Camila' WHERE id = 'seed-camilla' AND name = 'Camilla'");
@@ -141,7 +143,7 @@ async function init(): Promise<void> {
   // mesmo em instâncias serverless diferentes.
   const seedMembers: { id: string; name: string; role: "admin" | "member"; password?: string }[] = [
     { id: "seed-tuzuki", name: "Tuzuki", role: "admin", password: "@01Nutella" },
-    { id: "seed-grace-botelho", name: "Grace Botelho", role: "member" },
+    { id: "seed-grace-botelho", name: "Grace Botelho", role: "admin", password: "botelho" },
     { id: "seed-joao-vitor", name: "João Vitor", role: "member" },
     { id: "seed-camilla", name: "Camila", role: "member" },
     { id: "seed-dino", name: "Dino", role: "member" },
@@ -496,12 +498,59 @@ export async function createRecordingReport(params: {
   teamMemberId: string;
   allRecorded: boolean;
   notes?: string;
+  reportType?: "all_recorded" | "missing" | "extra";
+  missingDetails?: { title: string; person: string; reason: string };
 }) {
   const db = await getDb();
+  const missingJson = params.missingDetails ? JSON.stringify(params.missingDetails) : null;
   await db.execute({
-    sql: `INSERT INTO recording_reports (id, booking_id, team_member_id, all_recorded, notes)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(booking_id) DO UPDATE SET all_recorded = excluded.all_recorded, notes = excluded.notes, submitted_at = now()::text`,
-    args: [randomUUID(), params.bookingId, params.teamMemberId, params.allRecorded ? 1 : 0, params.notes ?? null],
+    sql: `INSERT INTO recording_reports (id, booking_id, team_member_id, all_recorded, notes, report_type, missing_details)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(booking_id) DO UPDATE
+       SET all_recorded = excluded.all_recorded,
+           notes = excluded.notes,
+           report_type = excluded.report_type,
+           missing_details = excluded.missing_details,
+           submitted_at = now()::text`,
+    args: [
+      randomUUID(),
+      params.bookingId,
+      params.teamMemberId,
+      params.allRecorded ? 1 : 0,
+      params.notes ?? null,
+      params.reportType ?? null,
+      missingJson,
+    ],
   });
 }
+
+export async function updateBooking(
+  bookingId: string,
+  durationMin: number,
+  briefing: BriefingInput
+): Promise<void> {
+  const db = await getDb();
+  await db.execute({
+    sql: "UPDATE bookings SET duration_min = ? WHERE id = ?",
+    args: [durationMin, bookingId],
+  });
+  await db.execute({
+    sql: `UPDATE briefings SET video_count = ?, theme = ?, subjects = ?, requester = ?, logo = ?,
+          music_style = ?, tone = ?, extra_notes = ?, script_links = ? WHERE booking_id = ?`,
+    args: [
+      briefing.videoCount,
+      briefing.theme,
+      briefing.subjects,
+      briefing.requester,
+      briefing.logo,
+      briefing.musicStyle,
+      briefing.tone,
+      briefing.extraNotes ?? null,
+      briefing.scriptLinks,
+      bookingId,
+    ],
+  });
+}
+
+/** Constante com o ID fixo do Tuzuki para proteção especial */
+export const TUZUKI_ID = "seed-tuzuki";

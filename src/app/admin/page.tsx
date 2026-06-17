@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getWeeksBookedMinutes, listTeamMembers } from "@/lib/db";
-import { getUpcomingTuesdays, isBookingOpen, recordingHappened, formatDateFull } from "@/lib/scheduling";
+import { getWeeksBookedMinutes, listTeamMembers, TUZUKI_ID } from "@/lib/db";
+import { getUpcomingMondays, isBookingOpen, recordingHappened, formatDateFull } from "@/lib/scheduling";
 import {
   addTeamMemberAction,
   toggleBlockWeekAction,
@@ -16,8 +16,8 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/");
 
-  const tuesdays = getUpcomingTuesdays(8);
-  const summaries = await getWeeksBookedMinutes(tuesdays);
+  const mondays = getUpcomingMondays(8);
+  const summaries = await getWeeksBookedMinutes(mondays);
   const members = await listTeamMembers(false);
 
   return (
@@ -29,7 +29,7 @@ export default async function AdminPage() {
 
       <h2 className="font-display text-lg text-preto mb-3">Próximas semanas</h2>
       <div className="flex flex-col gap-3 mb-10">
-        {tuesdays.map((date) => {
+        {mondays.map((date) => {
           const summary = summaries[date];
           const open = isBookingOpen(date);
           const happened = recordingHappened(date);
@@ -51,7 +51,7 @@ export default async function AdminPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={badge.tone}>{badge.label}</Badge>
-                  <LinkButton href={`/admin/terca/${date}`} variant="secondary">
+                  <LinkButton href={`/admin/segunda/${date}`} variant="secondary">
                     Gerenciar
                   </LinkButton>
                 </div>
@@ -94,31 +94,39 @@ export default async function AdminPage() {
       </Card>
 
       <div className="flex flex-col gap-2">
-        {members.map((m) => (
-          <Card key={m.id} className="p-3 sm:p-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-preto">
-                {m.name}
-                {m.role === "admin" && <span className="ml-2 text-xs font-normal text-laranja">admin</span>}
-                {!m.active && <span className="ml-2 text-xs font-normal text-vermelho">inativo</span>}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <form action={toggleMemberRoleAction}>
-                <input type="hidden" name="id" value={m.id} />
-                <Button type="submit" variant="ghost" className="text-xs px-3 py-1.5">
-                  {m.role === "admin" ? "Remover admin" : "Tornar admin"}
-                </Button>
-              </form>
-              <form action={toggleMemberActiveAction}>
-                <input type="hidden" name="id" value={m.id} />
-                <Button type="submit" variant={m.active ? "ghost" : "secondary"} className="text-xs px-3 py-1.5">
-                  {m.active ? "Desativar" : "Reativar"}
-                </Button>
-              </form>
-            </div>
-          </Card>
-        ))}
+        {members.map((m) => {
+          const isTuzuki = m.id === TUZUKI_ID;
+          return (
+            <Card key={m.id} className="p-3 sm:p-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-preto">
+                  {m.name}
+                  {m.role === "admin" && <span className="ml-2 text-xs font-normal text-laranja">admin</span>}
+                  {isTuzuki && <span className="ml-2 text-xs font-normal text-[#7a716a]">🔒</span>}
+                  {!m.active && <span className="ml-2 text-xs font-normal text-vermelho">inativo</span>}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isTuzuki && (
+                  <>
+                    <form action={toggleMemberRoleAction}>
+                      <input type="hidden" name="id" value={m.id} />
+                      <Button type="submit" variant="ghost" className="text-xs px-3 py-1.5">
+                        {m.role === "admin" ? "Remover admin" : "Tornar admin"}
+                      </Button>
+                    </form>
+                    <form action={toggleMemberActiveAction}>
+                      <input type="hidden" name="id" value={m.id} />
+                      <Button type="submit" variant={m.active ? "ghost" : "secondary"} className="text-xs px-3 py-1.5">
+                        {m.active ? "Desativar" : "Reativar"}
+                      </Button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
       <p className="text-sm mt-8">

@@ -27,26 +27,32 @@ export function fromISODate(iso: string): Date {
   return parseISO(iso);
 }
 
-/** Retorna todas as terças-feiras (yyyy-MM-dd) de um determinado mês/ano */
-export function getTuesdaysOfMonth(year: number, month1to12: number): string[] {
+/** Retorna todas as segundas-feiras (yyyy-MM-dd) de um determinado mês/ano */
+export function getMondaysOfMonth(year: number, month1to12: number): string[] {
   const start = startOfMonth(new Date(year, month1to12 - 1, 1));
   const end = endOfMonth(start);
   const days = eachDayOfInterval({ start, end });
-  return days.filter((d) => getDay(d) === 2).map(toISODate);
+  return days.filter((d) => getDay(d) === 1).map(toISODate);
 }
 
-/** Retorna as próximas N terças-feiras (yyyy-MM-dd), incluindo a desta semana caso ainda não tenha passado */
-export function getUpcomingTuesdays(count: number, from: Date = new Date()): string[] {
+/** Alias para compatibilidade */
+export const getTuesdaysOfMonth = getMondaysOfMonth;
+
+/** Retorna as próximas N segundas-feiras (yyyy-MM-dd), incluindo a desta semana caso ainda não tenha passado */
+export function getUpcomingMondays(count: number, from: Date = new Date()): string[] {
   const result: string[] = [];
   let cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   while (result.length < count) {
-    if (getDay(cursor) === 2) {
+    if (getDay(cursor) === 1) {
       result.push(toISODate(cursor));
     }
     cursor = addDays(cursor, 1);
   }
   return result;
 }
+
+/** Alias para compatibilidade */
+export const getUpcomingTuesdays = getUpcomingMondays;
 
 /** "HH:mm" -> minutos desde meia-noite */
 export function timeToMinutes(time: string): number {
@@ -68,27 +74,29 @@ export function windowDurationMinutes(startTime: string, endTime: string): numbe
   return timeToMinutes(endTime) - timeToMinutes(startTime);
 }
 
-/** Data/hora do prazo limite para agendar (segunda-feira anterior, 12:00) */
-export function bookingDeadline(tuesdayISO: string): Date {
-  const tue = fromISODate(tuesdayISO);
-  const monday = addDays(tue, -1);
-  let d = setHours(monday, 12);
+/** Data/hora do prazo limite para agendar (sexta-feira anterior às 12:00) */
+export function bookingDeadline(mondayISO: string): Date {
+  const monday = fromISODate(mondayISO);
+  const friday = addDays(monday, -3); // sexta-feira anterior
+  let d = setHours(friday, 12);
   d = setMinutes(d, 0);
   d = setSeconds(d, 0);
   d = setMilliseconds(d, 0);
   return d;
 }
 
-/** Verifica se ainda é possível agendar/alterar para essa semana (antes de segunda 12h) */
-export function isBookingOpen(tuesdayISO: string, now: Date = new Date()): boolean {
-  const deadline = bookingDeadline(tuesdayISO);
+/** Verifica se ainda é possível agendar/alterar para essa semana (antes de sexta 12h) */
+export function isBookingOpen(mondayISO: string, now: Date = new Date()): boolean {
+  const deadline = bookingDeadline(mondayISO);
   return isBefore(now, deadline);
 }
 
-/** A data da terça já chegou/passou? (gravação ocorrendo ou já ocorreu) */
-export function recordingHappened(tuesdayISO: string, now: Date = new Date()): boolean {
-  const tue = fromISODate(tuesdayISO);
-  return !isBefore(now, tue);
+/** A data da segunda já chegou/passou? (gravação ocorrendo ou já ocorreu) */
+export function recordingHappened(mondayISO: string, now: Date = new Date()): boolean {
+  const monday = fromISODate(mondayISO);
+  // Popup aparece a partir de terça (dia seguinte à gravação)
+  const tuesday = addDays(monday, 1);
+  return !isBefore(now, tuesday);
 }
 
 export type ScheduleItem = {

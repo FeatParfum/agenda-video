@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui";
-import { addMinutesToTime } from "@/lib/scheduling";
 import { TONE_OPTIONS, DURATION_SUGESTOES } from "@/lib/constants";
 
 const LOGO_OPTIONS = [
@@ -22,54 +21,56 @@ const MUSIC_OPTIONS = [
   "A critério da edição",
 ];
 
+type InitialValues = {
+  videoCount?: number;
+  durationMin?: number;
+  theme?: string;
+  subjects?: string;
+  requester?: string;
+  logo?: string;
+  musicStyle?: string;
+  tone?: string;
+  extraNotes?: string;
+  scriptLinks?: string;
+};
+
 type Props = {
   action: (formData: FormData) => void;
   weekDate: string;
+  bookingId?: string;
   startTime: string;
   bookedMinutes: number;
   totalMinutes: number;
   isExtra?: boolean;
   submitLabel?: string;
+  initialValues?: InitialValues;
 };
 
 export default function BriefingWizard({
   action,
   weekDate,
-  startTime,
-  bookedMinutes,
+  bookingId,
+  startTime: _startTime,
+  bookedMinutes: _bookedMinutes,
   totalMinutes,
   isExtra = false,
   submitLabel = "Confirmar solicitação",
+  initialValues = {},
 }: Props) {
   const [step, setStep] = useState(0);
-  const [videoCount, setVideoCount] = useState(1);
-  const [durationMin, setDurationMin] = useState(30);
-  const [theme, setTheme] = useState("");
-  const [subjects, setSubjects] = useState("");
-  const [requester, setRequester] = useState("");
-  const [logo, setLogo] = useState("");
-  const [musicStyle, setMusicStyle] = useState("");
-  const [tone, setTone] = useState("");
-  const [extraNotes, setExtraNotes] = useState("");
-  const [scriptLinks, setScriptLinks] = useState("");
+  const [videoCount, setVideoCount] = useState(initialValues.videoCount ?? 1);
+  const [durationMin, setDurationMin] = useState(initialValues.durationMin ?? 30);
+  const [theme, setTheme] = useState(initialValues.theme ?? "");
+  const [subjects, setSubjects] = useState(initialValues.subjects ?? "");
+  const [requester, setRequester] = useState(initialValues.requester ?? "");
+  const [logo, setLogo] = useState(initialValues.logo ?? "");
+  const [musicStyle, setMusicStyle] = useState(initialValues.musicStyle ?? "");
+  const [tone, setTone] = useState(initialValues.tone ?? "");
+  const [extraNotes, setExtraNotes] = useState(initialValues.extraNotes ?? "");
+  const [scriptLinks, setScriptLinks] = useState(initialValues.scriptLinks ?? "");
 
-  const suggestedStart = useMemo(
-    () => addMinutesToTime(startTime, bookedMinutes),
-    [startTime, bookedMinutes]
-  );
-  const suggestedEnd = useMemo(
-    () => addMinutesToTime(suggestedStart, durationMin),
-    [suggestedStart, durationMin]
-  );
-  const remaining = Math.max(0, totalMinutes - bookedMinutes);
-  const maxDuration = isExtra ? undefined : remaining;
-
-  useEffect(() => {
-    if (maxDuration !== undefined && maxDuration > 0 && durationMin > maxDuration) {
-      setDurationMin(maxDuration);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maxDuration]);
+  const remaining = Math.max(0, totalMinutes - _bookedMinutes);
+  const maxDuration = isExtra ? undefined : (remaining > 0 ? remaining : undefined);
 
   const steps = [
     {
@@ -78,7 +79,7 @@ export default function BriefingWizard({
       valid:
         durationMin >= 5 &&
         videoCount >= 1 &&
-        (maxDuration === undefined || (maxDuration > 0 && durationMin <= maxDuration)),
+        (maxDuration === undefined || durationMin <= maxDuration),
     },
     {
       title: "Conteúdo do vídeo",
@@ -128,6 +129,7 @@ export default function BriefingWizard({
 
       <form action={action} className="flex flex-col gap-5">
         <input type="hidden" name="weekDate" value={weekDate} />
+        {bookingId && <input type="hidden" name="bookingId" value={bookingId} />}
 
         {/* Etapa 0 */}
         <div className={step === 0 ? "flex flex-col gap-5" : "hidden"}>
@@ -180,31 +182,26 @@ export default function BriefingWizard({
               value={durationMin}
               onChange={(e) => {
                 const val = Math.max(5, Number(e.target.value) || 5);
-                setDurationMin(maxDuration !== undefined ? Math.min(val, Math.max(maxDuration, 5)) : val);
+                setDurationMin(maxDuration !== undefined ? Math.min(val, maxDuration) : val);
               }}
               className="w-32 rounded-xl border border-[#ece3d8] px-4 py-2.5 focus:border-laranja focus:outline-none"
             />
           </div>
 
-          {!isExtra && (
+          {!isExtra && remaining > 0 && (
             <div className="rounded-xl bg-bege px-4 py-3 text-sm text-[#5b534d]">
-              <p>
-                Horário sugerido: <strong>{suggestedStart} – {suggestedEnd}</strong>
-              </p>
-              <p className="mt-1 text-xs">
-                Tempo disponível na semana: {remaining} min. O administrador confirma e organiza
-                o horário definitivo até segunda-feira.
-              </p>
-              {remaining <= 0 && (
-                <p className="mt-1 text-xs font-semibold text-vermelho">
-                  Não há mais tempo disponível nesta semana. Escolha outra data.
-                </p>
-              )}
-              {remaining > 0 && durationMin > remaining && (
+              <p>Tempo disponível na semana: <strong>{remaining} min</strong></p>
+              <p className="mt-1 text-xs">O administrador confirma e organiza o horário definitivo.</p>
+              {durationMin > remaining && (
                 <p className="mt-1 text-xs font-semibold text-vermelho">
                   Só restam {remaining} min nesta semana — reduza a duração.
                 </p>
               )}
+            </div>
+          )}
+          {!isExtra && remaining <= 0 && totalMinutes > 0 && (
+            <div className="rounded-xl bg-[#fde6e0] border border-[#f7c6bb] px-4 py-3 text-sm text-vermelho">
+              Não há mais tempo disponível nesta semana. Escolha outra data.
             </div>
           )}
         </div>
@@ -363,9 +360,6 @@ export default function BriefingWizard({
             <p>Quem grava: {subjects || "—"}</p>
             <p>Solicitante: {requester || "—"} · Logo: {logo || "—"}</p>
             <p>Trilha: {musicStyle || "—"} · Tom: {tone || "—"}</p>
-            {!isExtra && (
-              <p className="mt-1">Horário sugerido: {suggestedStart} – {suggestedEnd}</p>
-            )}
           </div>
         </div>
 

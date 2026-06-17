@@ -20,6 +20,8 @@ import {
   setTeamMemberActive,
   setTeamMemberRole,
   setWeekBlocked,
+  updateBooking,
+  TUZUKI_ID,
   type BriefingInput,
 } from "@/lib/db";
 
@@ -85,7 +87,7 @@ export async function createBookingAction(formData: FormData) {
   if (user.role !== "admin") {
     if (week.is_blocked) throw new Error("Esta semana está bloqueada para gravações.");
     if (!isBookingOpen(weekDate)) {
-      throw new Error("O prazo para agendar/alterar esta semana já encerrou (segunda-feira às 12h).");
+      throw new Error("O prazo para agendar/alterar esta semana já encerrou (sexta-feira às 12h).");
     }
   }
 
@@ -96,10 +98,10 @@ export async function createBookingAction(formData: FormData) {
     briefing,
   });
 
-  revalidatePath(`/terca/${weekDate}`);
+  revalidatePath(`/segunda/${weekDate}`);
   revalidatePath("/");
   revalidatePath("/admin");
-  redirect(`/terca/${weekDate}?reservado=${booking.id}`);
+  redirect(`/segunda/${weekDate}?reservado=${booking.id}`);
 }
 
 export async function createExtraBookingAction(formData: FormData) {
@@ -121,8 +123,45 @@ export async function createExtraBookingAction(formData: FormData) {
   });
 
   revalidatePath("/minhas-reservas");
-  revalidatePath(`/admin/terca/${weekDate}`);
+  revalidatePath(`/admin/segunda/${weekDate}`);
   redirect("/minhas-reservas?extra=1");
+}
+
+// ---------- Editar reserva ----------
+
+export async function updateBookingAction(formData: FormData) {
+  const user = await requireUser();
+  const bookingId = String(formData.get("bookingId") || "");
+  const durationMin = Math.max(5, Number(formData.get("durationMin") || 0));
+  const briefing = readBriefing(formData);
+
+  if (!bookingId || !durationMin || !briefing.theme || !briefing.requester || !briefing.scriptLinks) {
+    throw new Error("Preencha todos os campos obrigatórios.");
+  }
+
+  const booking = await getBookingById(bookingId);
+  if (!booking) throw new Error("Reserva não encontrada.");
+
+  const isOwner = booking.team_member_id === user.id;
+  if (!isOwner && user.role !== "admin") {
+    throw new Error("Você não pode editar esta reserva.");
+  }
+
+  const week = await getWeekById(booking.week_id);
+  if (!week) throw new Error("Semana não encontrada.");
+
+  if (isOwner && user.role !== "admin") {
+    if (!isBookingOpen(week.date)) {
+      throw new Error("O prazo para alterar esta reserva já encerrou (sexta-feira às 12h).");
+    }
+  }
+
+  await updateBooking(bookingId, durationMin, briefing);
+
+  revalidatePath(`/segunda/${week.date}`);
+  revalidatePath("/minhas-reservas");
+  revalidatePath("/admin");
+  redirect(`/minhas-reservas?editado=1`);
 }
 
 // ---------- Cancelamento de reserva ----------
@@ -151,8 +190,8 @@ export async function cancelBookingAction(formData: FormData) {
   await deleteBooking(bookingId);
 
   if (week) {
-    revalidatePath(`/terca/${week.date}`);
-    revalidatePath(`/admin/terca/${week.date}`);
+    revalidatePath(`/segunda/${week.date}`);
+    revalidatePath(`/admin/segunda/${week.date}`);
   }
   revalidatePath("/minhas-reservas");
   revalidatePath("/");
@@ -171,15 +210,33 @@ export async function submitReportAction(formData: FormData) {
     throw new Error("Você não pode enviar o relatório desta reserva.");
   }
 
-  const allRecorded = formData.get("allRecorded") === "sim";
+  const reportType = String(formData.get("reportType") || "") as "all_recorded" | "missing" | "extra";
+  const allRecorded = reportType !== "missing";
   const notes = String(formData.get("notes") || "").trim() || undefined;
+
+  let missingDetails: { title: string; person: string; reason: string } | undefined;
+  if (reportType === "missing") {
+    missingDetails = {
+      title: String(formData.get("missingTitle") || "").trim(),
+      person: String(formData.get("missingPerson") || "").trim(),
+      reason: String(formData.get("missingReason") || "").trim(),
+    };
+  }
 
   await createRecordingReport({
     bookingId,
     teamMemberId: user.id,
     allRecorded,
     notes,
+    reportType,
+    missingDetails,
   });
+
+  const week = await getWeekById(booking.week_id);
+  if (reportType === "extra" && week) {
+    revalidatePath("/minhas-reservas");
+    redirect(`/segunda/${week.date}/agendar-extra`);
+  }
 
   revalidatePath("/minhas-reservas");
   redirect("/minhas-reservas?relatorio=1");
@@ -195,7 +252,7 @@ export async function toggleBlockWeekAction(formData: FormData) {
   await setWeekBlocked(weekDate, blocked, reason);
   revalidatePath("/admin");
   revalidatePath("/");
-  revalidatePath(`/terca/${weekDate}`);
+  revalidatePath(`/segunda/${weekDate}`);
   redirect("/admin");
 }
 
@@ -204,8 +261,8 @@ export async function toggleBlockWeekAction(formData: FormData) {
 export async function reorderAction(weekId: string, weekDate: string, orderedIds: string[]) {
   await requireAdmin();
   await reorderAndSchedule(weekId, orderedIds);
-  revalidatePath(`/admin/terca/${weekDate}`);
-  revalidatePath(`/terca/${weekDate}`);
+  revalidatePath(`/admin/segunda/${weekDate}`);
+  revalidatePath(`/segunda/${weekDate}`);
   revalidatePath("/");
 }
 
@@ -217,9 +274,9 @@ export async function setVideoLinkAction(formData: FormData) {
   const weekDate = String(formData.get("weekDate") || "");
   const link = String(formData.get("videoLink") || "").trim();
   await setBookingVideoLink(bookingId, link);
-  revalidatePath(`/admin/terca/${weekDate}`);
+  revalidatePath(`/admin/segunda/${weekDate}`);
   revalidatePath("/minhas-reservas");
-  redirect(`/admin/terca/${weekDate}`);
+  redirect(`/admin/segunda/${weekDate}`);
 }
 
 // ---------- Admin: equipe ----------
@@ -236,6 +293,7 @@ export async function addTeamMemberAction(formData: FormData) {
 export async function toggleMemberActiveAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") || "");
+  if (id === TUZUKI_ID) throw new Error("O perfil do Tuzuki não pode ser alterado.");
   const member = await getTeamMemberById(id);
   if (!member) throw new Error("Pessoa não encontrada.");
   await setTeamMemberActive(id, !member.active);
@@ -246,6 +304,7 @@ export async function toggleMemberActiveAction(formData: FormData) {
 export async function toggleMemberRoleAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") || "");
+  if (id === TUZUKI_ID) throw new Error("O perfil do Tuzuki não pode ser alterado.");
   const member = await getTeamMemberById(id);
   if (!member) throw new Error("Pessoa não encontrada.");
   await setTeamMemberRole(id, member.role === "admin" ? "member" : "admin");

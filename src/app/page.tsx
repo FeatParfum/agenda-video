@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getWeeksBookedMinutes } from "@/lib/db";
 import {
-  getTuesdaysOfMonth,
+  getMondaysOfMonth,
   isBookingOpen,
   recordingHappened,
   formatDateFull,
@@ -24,7 +24,7 @@ export default async function HomePage({
   const year = Number(params.ano) || now.getFullYear();
   const month = Number(params.mes) || now.getMonth() + 1;
 
-  const tuesdays = getTuesdaysOfMonth(year, month);
+  const tuesdays = getMondaysOfMonth(year, month);
   const summaries = await getWeeksBookedMinutes(tuesdays);
 
   let prevYear = year, prevMonth = month - 1;
@@ -36,7 +36,7 @@ export default async function HomePage({
     <div className="mx-auto max-w-5xl w-full px-4 sm:px-6 py-8 sm:py-12">
       <PageHeader
         title="Calendário de gravações"
-        subtitle="O Nathan grava às terças-feiras, das 13h30 às 18h00."
+        subtitle="O Nathan grava às segundas-feiras, das 13h30 às 18h00."
         actions={
           <div className="flex items-center gap-2">
             <Link
@@ -59,7 +59,7 @@ export default async function HomePage({
       />
 
       {tuesdays.length === 0 ? (
-        <p className="text-sm text-[#7a716a]">Não há terças-feiras neste mês.</p>
+        <p className="text-sm text-[#7a716a]">Não há segundas-feiras neste mês.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tuesdays.map((date) => {
@@ -82,7 +82,7 @@ export default async function HomePage({
             }
 
             return (
-              <Link key={date} href={`/terca/${date}`} className="block">
+              <Link key={date} href={`/segunda/${date}`} className="block">
                 <Card className="p-5 h-full hover:border-laranja transition-colors">
                   <div className="flex items-start justify-between gap-2">
                     <div>

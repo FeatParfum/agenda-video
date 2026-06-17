@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { listBookingsForMember } from "@/lib/db";
-import { recordingHappened, formatDateFull } from "@/lib/scheduling";
+import { recordingHappened, isBookingOpen, formatDateFull } from "@/lib/scheduling";
 import { Badge, Card, LinkButton, PageHeader } from "@/components/ui";
 import ReportForm from "@/components/ReportForm";
 import CancelBookingButton from "@/components/CancelBookingButton";
@@ -10,17 +10,17 @@ import CancelBookingButton from "@/components/CancelBookingButton";
 export default async function MinhasReservasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ relatorio?: string; extra?: string }>;
+  searchParams: Promise<{ relatorio?: string; extra?: string; editado?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { relatorio, extra } = await searchParams;
+  const { relatorio, extra, editado } = await searchParams;
   const bookings = await listBookingsForMember(user.id);
 
   return (
     <div className="mx-auto max-w-3xl w-full px-4 sm:px-6 py-8 sm:py-12">
-      <PageHeader title="Minhas reservas" subtitle="Acompanhe suas gravações, links finais e relatórios." />
+      <PageHeader title="Minhas reservas" subtitle="Acompanhe suas gravações, horários aprovados e relatórios." />
 
       {relatorio && (
         <div className="mb-6 rounded-xl bg-[#e4f3e6] border border-[#bfe6c6] px-4 py-3 text-sm text-[#1f7a32]">
@@ -32,20 +32,32 @@ export default async function MinhasReservasPage({
           Vídeo extra registrado. O administrador irá organizar o horário.
         </div>
       )}
+      {editado && (
+        <div className="mb-6 rounded-xl bg-[#e4f3e6] border border-[#bfe6c6] px-4 py-3 text-sm text-[#1f7a32]">
+          Reserva atualizada com sucesso!
+        </div>
+      )}
 
       {bookings.length === 0 ? (
         <Card className="p-6 text-center text-sm text-[#7a716a]">
-          Você ainda não tem reservas. <Link href="/" className="text-laranja font-semibold hover:underline">Ver calendário</Link>
+          Você ainda não tem reservas.{" "}
+          <Link href="/" className="text-laranja font-semibold hover:underline">
+            Ver calendário
+          </Link>
         </Card>
       ) : (
         <div className="flex flex-col gap-4">
           {bookings.map((b) => {
             const happened = recordingHappened(b.weekDate);
+            const open = isBookingOpen(b.weekDate);
             return (
               <Card key={b.id} className="p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <Link href={`/terca/${b.weekDate}`} className="font-semibold text-preto hover:text-laranja capitalize">
+                    <Link
+                      href={`/segunda/${b.weekDate}`}
+                      className="font-semibold text-preto hover:text-laranja capitalize"
+                    >
                       {formatDateFull(b.weekDate)}
                     </Link>
                     <p className="text-sm text-[#7a716a] mt-0.5">
@@ -55,13 +67,22 @@ export default async function MinhasReservasPage({
                   </div>
                   <div className="text-right">
                     {b.start_time && b.end_time ? (
-                      <p className="font-display text-base text-preto">{b.start_time} – {b.end_time}</p>
+                      <p className="font-display text-base text-preto">
+                        {b.start_time} – {b.end_time}
+                      </p>
                     ) : (
                       <Badge tone="warning">Horário a definir</Badge>
                     )}
                     <p className="text-xs text-[#7a716a] mt-1 capitalize">{b.status}</p>
                   </div>
                 </div>
+
+                {/* Aviso de horário pendente de aprovação */}
+                {!happened && !open && !b.start_time && (
+                  <p className="mt-2 text-xs text-[#7a716a]">
+                    Prazo encerrado — aguarde o administrador confirmar o horário antes da segunda-feira.
+                  </p>
+                )}
 
                 {b.video_link && (
                   <a
@@ -74,6 +95,7 @@ export default async function MinhasReservasPage({
                   </a>
                 )}
 
+                {/* Relatório pós-gravação (aparece a partir de terça) */}
                 {happened && !b.report && <ReportForm bookingId={b.id} />}
 
                 {happened && b.report && (
@@ -92,14 +114,26 @@ export default async function MinhasReservasPage({
 
                 {happened && (
                   <div className="mt-3">
-                    <LinkButton href={`/terca/${b.weekDate}/agendar-extra`} variant="ghost" className="text-xs px-3 py-1.5">
+                    <LinkButton
+                      href={`/segunda/${b.weekDate}/agendar-extra`}
+                      variant="ghost"
+                      className="text-xs px-3 py-1.5"
+                    >
                       Registrar vídeo extra gravado nesta sessão
                     </LinkButton>
                   </div>
                 )}
 
                 {!happened && (
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap gap-2 items-center">
+                    {open && (
+                      <Link
+                        href={`/segunda/${b.weekDate}/editar/${b.id}`}
+                        className="inline-flex items-center rounded-xl border border-laranja px-3 py-1.5 text-xs font-semibold text-laranja hover:bg-[#fff5ec] transition-colors"
+                      >
+                        ✏️ Editar reserva
+                      </Link>
+                    )}
                     <CancelBookingButton bookingId={b.id} redirectTo="/minhas-reservas" />
                   </div>
                 )}
