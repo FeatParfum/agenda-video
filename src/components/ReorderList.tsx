@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   DndContext,
@@ -185,7 +186,7 @@ function SortableItem({
                 )}
                 <p className="sm:col-span-2">
                   <strong>Roteiro:</strong>{" "}
-                  <a href={booking.briefing.script_links} target="_blank" rel="noreferrer" className="text-laranja hover:underline">
+                  <a href={booking.briefing.script_links} target="_blank" rel="noreferrer" className="text-laranja hover:underline break-all">
                     {booking.briefing.script_links}
                   </a>
                 </p>
@@ -216,10 +217,16 @@ function SortableItem({
             </Button>
           </form>
 
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-2 items-center">
+            <Link
+              href={`/segunda/${weekDate}/editar/${booking.id}`}
+              className="inline-flex items-center rounded-xl border border-laranja px-3 py-1.5 text-xs font-semibold text-laranja hover:bg-[#fff5ec] transition-colors"
+            >
+              ✏️ Editar reserva
+            </Link>
             <CancelBookingButton
               bookingId={booking.id}
-              redirectTo={`/admin/terca/${weekDate}`}
+              redirectTo={`/admin/segunda/${weekDate}`}
               label="Remover reserva"
               confirmMessage={`Remover a reserva de ${booking.team_member_name}? Essa ação não pode ser desfeita.`}
             />
