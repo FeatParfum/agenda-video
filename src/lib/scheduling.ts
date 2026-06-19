@@ -74,29 +74,74 @@ export function windowDurationMinutes(startTime: string, endTime: string): numbe
   return timeToMinutes(endTime) - timeToMinutes(startTime);
 }
 
-/** Data/hora do prazo limite para agendar (sexta-feira anterior às 12:00) */
-export function bookingDeadline(mondayISO: string): Date {
-  const monday = fromISODate(mondayISO);
-  const friday = addDays(monday, -3); // sexta-feira anterior
-  let d = setHours(friday, 12);
-  d = setMinutes(d, 0);
-  d = setSeconds(d, 0);
-  d = setMilliseconds(d, 0);
+/**
+ * Brasília (America/Sao_Paulo) não observa horário de verão desde 2019, então o
+ * deslocamento em relação ao UTC é fixo: UTC-3. As funções de servidor (Vercel)
+ * rodam em UTC, então para representar "12:00 em Brasília" precisamos do
+ * instante UTC equivalente, que é 12:00 + 3h = 15:00 UTC.
+ */
+const BRT_OFFSET_HOURS = 3;
+
+/**
+ * Dado um Date que representa a meia-noite UTC de um dia-calendário (como os
+ * retornados por fromISODate), retorna o instante UTC correspondente a
+ * `hourBRT:minuteBRT` no horário de Brasília, nesse mesmo dia-calendário.
+ */
+function brtTimeOnDate(baseDate: Date, hourBRT: number, minuteBRT: number = 0): Date {
+  const d = new Date(baseDate);
+  d.setUTCHours(hourBRT + BRT_OFFSET_HOURS, minuteBRT, 0, 0);
   return d;
 }
 
-/** Verifica se ainda é possível agendar/alterar para essa semana (antes de sexta 12h) */
+/** Data/hora do prazo limite para pessoas comuns agendarem/alterarem (sexta-feira anterior às 12:00, horário de Brasília) */
+export function bookingDeadline(mondayISO: string): Date {
+  const monday = fromISODate(mondayISO);
+  const friday = addDays(monday, -3); // sexta-feira anterior
+  return brtTimeOnDate(friday, 12, 0);
+}
+
+/**
+ * Data/hora do prazo limite excepcional do admin (segunda-feira às 12:00, horário de
+ * Brasília, a própria segunda da gravação, antes do início da janela às 13h30).
+ * Entre o prazo normal (sexta 12h) e este prazo, somente o admin pode agendar ou
+ * liberar uma exceção; depois deste prazo, ninguém pode mais agendar para essa semana.
+ */
+export function adminBookingDeadline(mondayISO: string): Date {
+  const monday = fromISODate(mondayISO);
+  return brtTimeOnDate(monday, 12, 0);
+}
+
+/** Verifica se ainda é possível uma pessoa comum agendar/alterar para essa semana (antes de sexta 12h, horário de Brasília) */
 export function isBookingOpen(mondayISO: string, now: Date = new Date()): boolean {
   const deadline = bookingDeadline(mondayISO);
   return isBefore(now, deadline);
 }
 
-/** A data da segunda já chegou/passou? (gravação ocorrendo ou já ocorreu) */
+/** Verifica se o admin ainda pode agendar/alterar ou liberar exceção para essa semana (antes de segunda 12h, horário de Brasília) */
+export function isAdminBookingOpen(mondayISO: string, now: Date = new Date()): boolean {
+  const deadline = adminBookingDeadline(mondayISO);
+  return isBefore(now, deadline);
+}
+
+/**
+ * Verifica se é possível criar/alterar uma reserva para essa semana, considerando o
+ * papel do usuário. Admin tem uma janela extra (até segunda 12h), mas nunca é ilimitado.
+ */
+export function canManageBooking(
+  role: "admin" | "member",
+  mondayISO: string,
+  now: Date = new Date()
+): boolean {
+  return role === "admin" ? isAdminBookingOpen(mondayISO, now) : isBookingOpen(mondayISO, now);
+}
+
+/** A data da segunda já chegou/passou? (gravação ocorrendo ou já ocorreu), considerando meia-noite de terça no horário de Brasília */
 export function recordingHappened(mondayISO: string, now: Date = new Date()): boolean {
   const monday = fromISODate(mondayISO);
   // Popup aparece a partir de terça (dia seguinte à gravação)
   const tuesday = addDays(monday, 1);
-  return !isBefore(now, tuesday);
+  const tuesdayMidnightBRT = brtTimeOnDate(tuesday, 0, 0);
+  return !isBefore(now, tuesdayMidnightBRT);
 }
 
 export type ScheduleItem = {

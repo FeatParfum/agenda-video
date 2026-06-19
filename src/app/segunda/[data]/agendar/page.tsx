@@ -2,7 +2,13 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getOrCreateWeek, listBookingsForWeek } from "@/lib/db";
-import { isBookingOpen, windowDurationMinutes, totalBookedMinutes, formatDateFull } from "@/lib/scheduling";
+import {
+  isAdminBookingOpen,
+  isBookingOpen,
+  windowDurationMinutes,
+  totalBookedMinutes,
+  formatDateFull,
+} from "@/lib/scheduling";
 import { createBookingAction } from "@/app/actions";
 import { Card, PageHeader } from "@/components/ui";
 import BriefingWizard from "@/components/BriefingWizard";
@@ -21,7 +27,8 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ da
   const total = windowDurationMinutes(week.start_time, week.end_time);
   const booked = totalBookedMinutes(bookings.map((b) => ({ durationMin: b.duration_min })));
 
-  const canBook = !week.is_blocked && (user.role === "admin" || isBookingOpen(data));
+  const canBook =
+    !week.is_blocked && (user.role === "admin" ? isAdminBookingOpen(data) : isBookingOpen(data));
   if (!canBook) {
     return (
       <div className="mx-auto max-w-2xl w-full px-4 sm:px-6 py-12">
@@ -30,6 +37,8 @@ export default async function NovaReservaPage({ params }: { params: Promise<{ da
           <p className="text-sm text-[#7a716a] mt-1">
             {week.is_blocked
               ? "O Nathan está indisponível nesta semana."
+              : user.role === "admin"
+              ? "O prazo excepcional do admin (segunda-feira às 12h) já encerrou."
               : "O prazo de agendamento (sexta-feira às 12h) já encerrou."}
           </p>
           <Link href={`/segunda/${data}`} className="inline-block mt-4 text-laranja font-semibold hover:underline">

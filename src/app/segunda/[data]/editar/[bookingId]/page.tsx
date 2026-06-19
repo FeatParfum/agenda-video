@@ -2,7 +2,13 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getBookingById, getOrCreateWeek, listBookingsForWeek } from "@/lib/db";
-import { isBookingOpen, windowDurationMinutes, totalBookedMinutes, formatDateFull } from "@/lib/scheduling";
+import {
+  isAdminBookingOpen,
+  isBookingOpen,
+  windowDurationMinutes,
+  totalBookedMinutes,
+  formatDateFull,
+} from "@/lib/scheduling";
 import { updateBookingAction } from "@/app/actions";
 import { Card, PageHeader } from "@/components/ui";
 import BriefingWizard from "@/components/BriefingWizard";
@@ -35,14 +41,16 @@ export default async function EditarReservaPage({
     .filter((b) => b.id !== bookingId)
     .reduce((acc, b) => acc + b.duration_min, 0);
 
-  const canEdit = user.role === "admin" || isBookingOpen(data);
+  const canEdit = user.role === "admin" ? isAdminBookingOpen(data) : isBookingOpen(data);
   if (!canEdit) {
     return (
       <div className="mx-auto max-w-2xl w-full px-4 sm:px-6 py-12">
         <Card className="p-6 text-center">
           <p className="font-semibold text-preto">Prazo de alteração encerrado.</p>
           <p className="text-sm text-[#7a716a] mt-1">
-            O prazo para alterar esta semana (sexta-feira às 12h) já passou.
+            {user.role === "admin"
+              ? "O prazo excepcional do admin (segunda-feira às 12h) já passou."
+              : "O prazo para alterar esta semana (sexta-feira às 12h) já passou."}
           </p>
           <Link href={`/segunda/${data}`} className="inline-block mt-4 text-laranja font-semibold hover:underline">
             ← Voltar

@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getOrCreateWeek, listBookingsForWeek } from "@/lib/db";
 import {
+  isAdminBookingOpen,
   isBookingOpen,
   recordingHappened,
   bookingDeadline,
@@ -38,7 +39,8 @@ export default async function WeekDetailPage({
   const open = isBookingOpen(data);
   const happened = recordingHappened(data);
   const deadline = bookingDeadline(data);
-  const canBook = !week.is_blocked && (user.role === "admin" || open);
+  const canBook =
+    !week.is_blocked && (user.role === "admin" ? isAdminBookingOpen(data) : open);
 
   return (
     <div className="mx-auto max-w-3xl w-full px-4 sm:px-6 py-8 sm:py-12">

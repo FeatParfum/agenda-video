@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { SESSION_COOKIE } from "@/lib/constants";
 import { requireAdmin, requireUser } from "@/lib/session";
-import { isBookingOpen, recordingHappened } from "@/lib/scheduling";
+import { isAdminBookingOpen, isBookingOpen, recordingHappened } from "@/lib/scheduling";
 import {
   createBooking,
   createRecordingReport,
@@ -87,8 +87,12 @@ export async function createBookingAction(formData: FormData) {
   if (user.role !== "admin") {
     if (week.is_blocked) throw new Error("Esta semana está bloqueada para gravações.");
     if (!isBookingOpen(weekDate)) {
-      throw new Error("O prazo para agendar/alterar esta semana já encerrou (sexta-feira às 12h).");
+      throw new Error("O prazo para agendar/alterar esta semana já encerrou (sexta-feira às 12h, horário de Brasília).");
     }
+  } else if (!isAdminBookingOpen(weekDate)) {
+    throw new Error(
+      "O prazo excepcional do admin para esta semana já encerrou (segunda-feira às 12h, horário de Brasília)."
+    );
   }
 
   const booking = await createBooking({
@@ -150,9 +154,15 @@ export async function updateBookingAction(formData: FormData) {
   const week = await getWeekById(booking.week_id);
   if (!week) throw new Error("Semana não encontrada.");
 
-  if (isOwner && user.role !== "admin") {
+  if (user.role === "admin") {
+    if (!isAdminBookingOpen(week.date)) {
+      throw new Error(
+        "O prazo excepcional do admin para esta semana já encerrou (segunda-feira às 12h, horário de Brasília)."
+      );
+    }
+  } else if (isOwner) {
     if (!isBookingOpen(week.date)) {
-      throw new Error("O prazo para alterar esta reserva já encerrou (sexta-feira às 12h).");
+      throw new Error("O prazo para alterar esta reserva já encerrou (sexta-feira às 12h, horário de Brasília).");
     }
   }
 
