@@ -15,6 +15,7 @@ import {
   getOrCreateWeek,
   getTeamMemberById,
   getWeekById,
+  listBookingsForWeek,
   reorderAndSchedule,
   setBookingVideoLink,
   setTeamMemberActive,
@@ -167,6 +168,16 @@ export async function updateBookingAction(formData: FormData) {
   }
 
   await updateBooking(bookingId, durationMin, briefing);
+
+  // Se a semana já tinha horários organizados pelo admin, recalcula os horários
+  // de todas as reservas para que continuem consistentes com a nova duração
+  // (sem isso, o horário de início/fim ficava desatualizado e não somava com
+  // a duração mostrada).
+  const weekBookings = await listBookingsForWeek(week.id);
+  const weekAlreadyScheduled = weekBookings.some((b) => b.start_time && b.end_time);
+  if (weekAlreadyScheduled) {
+    await reorderAndSchedule(week.id, weekBookings.map((b) => b.id));
+  }
 
   revalidatePath(`/segunda/${week.date}`);
   revalidatePath(`/admin/segunda/${week.date}`);
