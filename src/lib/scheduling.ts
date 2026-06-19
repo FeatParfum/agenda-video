@@ -102,6 +102,8 @@ export function recordingHappened(mondayISO: string, now: Date = new Date()): bo
 export type ScheduleItem = {
   id: string;
   durationMin: number;
+  /** Lacuna (em minutos) a ser inserida antes deste item, além do término do anterior. */
+  gapBeforeMin?: number;
 };
 
 export type ScheduledResult = {
@@ -110,7 +112,12 @@ export type ScheduledResult = {
   endTime: string;
 };
 
-/** Calcula horários sequenciais a partir de startTime, dada a ordem dos itens */
+/**
+ * Calcula horários sequenciais a partir de startTime, dada a ordem dos itens.
+ * Cada item pode opcionalmente ter uma lacuna (gapBeforeMin) que empurra seu início
+ * (e o de todos os itens seguintes) para mais tarde, deixando um intervalo livre
+ * entre uma reserva e a anterior.
+ */
 export function computeSchedule(
   items: ScheduleItem[],
   startTime: string = DEFAULT_START_TIME
@@ -118,6 +125,7 @@ export function computeSchedule(
   let cursor = timeToMinutes(startTime);
   const result: ScheduledResult[] = [];
   for (const item of items) {
+    cursor += Math.max(0, item.gapBeforeMin ?? 0);
     const start = cursor;
     const end = cursor + item.durationMin;
     result.push({ id: item.id, startTime: minutesToTime(start), endTime: minutesToTime(end) });

@@ -97,6 +97,7 @@ async function init(): Promise<void> {
       team_member_id TEXT NOT NULL REFERENCES team_members(id),
       "order" INTEGER NOT NULL DEFAULT 0,
       duration_min INTEGER NOT NULL,
+      gap_before_min INTEGER NOT NULL DEFAULT 0,
       suggested_time TEXT,
       start_time TEXT,
       end_time TEXT,
@@ -135,6 +136,7 @@ async function init(): Promise<void> {
   await db.execute("ALTER TABLE team_members ADD COLUMN IF NOT EXISTS password TEXT");
   await db.execute("ALTER TABLE recording_reports ADD COLUMN IF NOT EXISTS missing_details TEXT");
   await db.execute("ALTER TABLE recording_reports ADD COLUMN IF NOT EXISTS report_type TEXT");
+  await db.execute("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS gap_before_min INTEGER NOT NULL DEFAULT 0");
 
   // migração: corrige nome "Camilla" -> "Camila" em bancos já existentes
   await db.execute("UPDATE team_members SET name = 'Camila' WHERE id = 'seed-camilla' AND name = 'Camilla'");
@@ -225,6 +227,7 @@ export type Booking = {
   team_member_id: string;
   order: number;
   duration_min: number;
+  gap_before_min: number;
   suggested_time: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -458,21 +461,36 @@ export async function createBooking(params: {
   return (await getBookingById(id))!;
 }
 
-/** Recalcula horários sequenciais de acordo com a ordem e marca como confirmados. */
-export async function reorderAndSchedule(weekId: string, orderedBookingIds: string[]) {
+/**
+ * Recalcula horários sequenciais de acordo com a ordem e marca como confirmados.
+ * `gaps` (opcional) permite definir, por reserva, quantos minutos de intervalo livre
+ * devem ser deixados antes dela (em relação ao término da reserva anterior). Útil
+ * para abrir uma lacuna na agenda quando, por exemplo, um professor só está
+ * disponível mais tarde.
+ */
+export async function reorderAndSchedule(
+  weekId: string,
+  orderedBookingIds: string[],
+  gaps?: Record<string, number>
+) {
   const db = await getDb();
   const weekRes = await db.execute({ sql: "SELECT * FROM weeks WHERE id = ?", args: [weekId] });
   const week = weekRes.rows[0] as unknown as Week;
   const bookings = await listBookingsForWeek(weekId);
   const byId = new Map(bookings.map((b) => [b.id, b]));
 
-  const items = orderedBookingIds.map((id) => ({ id, durationMin: byId.get(id)?.duration_min ?? 0 }));
+  const items = orderedBookingIds.map((id) => ({
+    id,
+    durationMin: byId.get(id)?.duration_min ?? 0,
+    gapBeforeMin: gaps?.[id] ?? byId.get(id)?.gap_before_min ?? 0,
+  }));
   const schedule = computeSchedule(items, week.start_time);
 
   for (const [idx, s] of schedule.entries()) {
+    const gapBeforeMin = items[idx].gapBeforeMin ?? 0;
     await db.execute({
-      sql: `UPDATE bookings SET "order" = ?, start_time = ?, end_time = ?, status = 'confirmado' WHERE id = ?`,
-      args: [idx, s.startTime, s.endTime, s.id],
+      sql: `UPDATE bookings SET "order" = ?, gap_before_min = ?, start_time = ?, end_time = ?, status = 'confirmado' WHERE id = ?`,
+      args: [idx, gapBeforeMin, s.startTime, s.endTime, s.id],
     });
   }
 }

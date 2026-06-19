@@ -35,11 +35,15 @@ export default function ReorderList({
   startTime: string;
 }) {
   const [items, setItems] = useState(bookings);
+  const [gaps, setGaps] = useState<Record<string, number>>(() =>
+    Object.fromEntries(bookings.map((b) => [b.id, b.gap_before_min ?? 0]))
+  );
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setItems(bookings);
+    setGaps(Object.fromEntries(bookings.map((b) => [b.id, b.gap_before_min ?? 0])));
   }, [bookings]);
 
   const sensors = useSensors(
@@ -49,10 +53,10 @@ export default function ReorderList({
   const preview = useMemo(
     () =>
       computeSchedule(
-        items.map((b) => ({ id: b.id, durationMin: b.duration_min })),
+        items.map((b) => ({ id: b.id, durationMin: b.duration_min, gapBeforeMin: gaps[b.id] ?? 0 })),
         startTime
       ),
-    [items, startTime]
+    [items, gaps, startTime]
   );
 
   function handleDragEnd(event: DragEndEvent) {
@@ -66,9 +70,14 @@ export default function ReorderList({
     setSaved(false);
   }
 
+  function handleGapChange(bookingId: string, minutes: number) {
+    setGaps((current) => ({ ...current, [bookingId]: Math.max(0, minutes) }));
+    setSaved(false);
+  }
+
   function handleSave() {
     startTransition(async () => {
-      await reorderAction(weekId, weekDate, items.map((i) => i.id));
+      await reorderAction(weekId, weekDate, items.map((i) => i.id), gaps);
       setSaved(true);
     });
   }
@@ -82,7 +91,8 @@ export default function ReorderList({
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-[#7a716a]">
           Arraste para reorganizar a ordem. Os horários são recalculados automaticamente a
-          partir das {startTime}.
+          partir das {startTime}. Use &quot;Lacuna antes&quot; para deixar um intervalo livre
+          antes de uma reserva.
         </p>
         <Button onClick={handleSave} disabled={isPending} variant="primary" className="text-sm shrink-0">
           {isPending ? "Salvando..." : "Salvar ordem e horários"}
@@ -97,15 +107,28 @@ export default function ReorderList({
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-3">
-            {items.map((booking, idx) => (
-              <SortableItem
-                key={booking.id}
-                booking={booking}
-                index={idx}
-                schedule={preview[idx]}
-                weekDate={weekDate}
-              />
-            ))}
+            {items.map((booking, idx) => {
+              const gapMin = gaps[booking.id] ?? 0;
+              return (
+                <div key={booking.id}>
+                  {gapMin > 0 && (
+                    <div className="flex items-center gap-2 px-2 py-1 my-1 text-xs text-[#a39a92]">
+                      <span className="flex-1 border-t border-dashed border-[#ddd2c5]" />
+                      <span>⏳ {gapMin} min livres</span>
+                      <span className="flex-1 border-t border-dashed border-[#ddd2c5]" />
+                    </div>
+                  )}
+                  <SortableItem
+                    booking={booking}
+                    index={idx}
+                    schedule={preview[idx]}
+                    weekDate={weekDate}
+                    gapMin={gapMin}
+                    onGapChange={(minutes) => handleGapChange(booking.id, minutes)}
+                  />
+                </div>
+              );
+            })}
           </div>
         </SortableContext>
       </DndContext>
@@ -118,11 +141,15 @@ function SortableItem({
   index,
   schedule,
   weekDate,
+  gapMin,
+  onGapChange,
 }: {
   booking: Booking;
   index: number;
   schedule: { startTime: string; endTime: string };
   weekDate: string;
+  gapMin: number;
+  onGapChange: (minutes: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: booking.id,
@@ -168,6 +195,22 @@ function SortableItem({
               </p>
               <p className="text-xs text-[#7a716a] mt-1 capitalize">{booking.status}</p>
             </div>
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <label htmlFor={`gap-${booking.id}`} className="text-xs text-[#7a716a]">
+              Lacuna antes deste horário:
+            </label>
+            <input
+              id={`gap-${booking.id}`}
+              type="number"
+              min={0}
+              step={5}
+              value={gapMin}
+              onChange={(e) => onGapChange(Number(e.target.value) || 0)}
+              className="w-20 rounded-lg border border-[#ece3d8] px-2 py-1 text-xs focus:border-laranja focus:outline-none"
+            />
+            <span className="text-xs text-[#7a716a]">min</span>
           </div>
 
           <details className="mt-2 text-sm">

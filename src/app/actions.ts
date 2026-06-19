@@ -159,8 +159,13 @@ export async function updateBookingAction(formData: FormData) {
   await updateBooking(bookingId, durationMin, briefing);
 
   revalidatePath(`/segunda/${week.date}`);
+  revalidatePath(`/admin/segunda/${week.date}`);
   revalidatePath("/minhas-reservas");
-  revalidatePath("/admin");
+  revalidatePath("/");
+
+  if (!isOwner && user.role === "admin") {
+    redirect(`/admin/segunda/${week.date}`);
+  }
   redirect(`/minhas-reservas?editado=1`);
 }
 
@@ -258,9 +263,14 @@ export async function toggleBlockWeekAction(formData: FormData) {
 
 // ---------- Admin: reordenar / horários ----------
 
-export async function reorderAction(weekId: string, weekDate: string, orderedIds: string[]) {
+export async function reorderAction(
+  weekId: string,
+  weekDate: string,
+  orderedIds: string[],
+  gaps?: Record<string, number>
+) {
   await requireAdmin();
-  await reorderAndSchedule(weekId, orderedIds);
+  await reorderAndSchedule(weekId, orderedIds, gaps);
   revalidatePath(`/admin/segunda/${weekDate}`);
   revalidatePath(`/segunda/${weekDate}`);
   revalidatePath("/");
