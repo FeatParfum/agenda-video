@@ -5,17 +5,23 @@ import { getWeeksBookedMinutes, listTeamMembers, TUZUKI_ID } from "@/lib/db";
 import { getUpcomingMondays, isBookingOpen, recordingHappened, formatDateFull } from "@/lib/scheduling";
 import {
   addTeamMemberAction,
+  recalculateAllSchedulesAction,
   toggleBlockWeekAction,
   toggleMemberActiveAction,
   toggleMemberRoleAction,
 } from "@/app/actions";
 import { Badge, Button, Card, LinkButton, PageHeader } from "@/components/ui";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ recalculado?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "admin") redirect("/");
 
+  const { recalculado } = await searchParams;
   const mondays = getUpcomingMondays(8);
   const summaries = await getWeeksBookedMinutes(mondays);
   const members = await listTeamMembers(false);
@@ -26,6 +32,28 @@ export default async function AdminPage() {
         title="Painel do administrador"
         subtitle="Organize os horários, bloqueie semanas e gerencie a equipe."
       />
+
+      <Card className="p-4 sm:p-5 mb-10">
+        <p className="font-semibold text-preto">Manutenção</p>
+        <p className="text-sm text-[#7a716a] mt-1">
+          Recalcula os horários (início/fim) de todas as semanas já organizadas, usando a
+          duração e a ordem atuais de cada reserva. Use se algum horário exibido parecer
+          desatualizado em relação à duração da reserva. Não afeta reservas ainda não
+          organizadas.
+        </p>
+        {recalculado !== undefined && (
+          <p className="mt-2 text-sm text-[#1f7a32] bg-[#e4f3e6] border border-[#bfe6c6] rounded-lg px-3 py-2">
+            {Number(recalculado) > 0
+              ? `Pronto! ${recalculado} semana(s) recalculada(s).`
+              : "Nenhuma semana precisava de recálculo."}
+          </p>
+        )}
+        <form action={recalculateAllSchedulesAction} className="mt-3">
+          <Button type="submit" variant="secondary" className="text-sm px-4 py-2">
+            Recalcular horários de todas as semanas
+          </Button>
+        </form>
+      </Card>
 
       <h2 className="font-display text-lg text-preto mb-3">Próximas semanas</h2>
       <div className="flex flex-col gap-3 mb-10">

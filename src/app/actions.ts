@@ -15,6 +15,7 @@ import {
   getOrCreateWeek,
   getTeamMemberById,
   getWeekById,
+  listAllWeeks,
   listBookingsForWeek,
   reorderAndSchedule,
   setBookingVideoLink,
@@ -130,6 +131,37 @@ export async function createExtraBookingAction(formData: FormData) {
   revalidatePath("/minhas-reservas");
   revalidatePath(`/admin/segunda/${weekDate}`);
   redirect("/minhas-reservas?extra=1");
+}
+
+// ---------- Manutenção: recalcular horários desatualizados ----------
+// Reservas editadas antes da correção do bug de recalculo podem ter
+// start_time/end_time desatualizados em relação à duration_min atual.
+// Esta ação reaplica reorderAndSchedule em toda semana já organizada,
+// usando a ordem e as lacunas (gap_before_min) já salvas, sem alterar
+// nada além de start_time/end_time/order. Segura para rodar quantas
+// vezes for preciso (idempotente quando os dados já estão corretos).
+export async function recalculateAllSchedulesAction() {
+  await requireAdmin();
+
+  const weeks = await listAllWeeks();
+  let weeksFixed = 0;
+  for (const week of weeks) {
+    const bookings = await listBookingsForWeek(week.id);
+    const alreadyScheduled = bookings.some((b) => b.start_time && b.end_time);
+    if (alreadyScheduled && bookings.length > 0) {
+      await reorderAndSchedule(week.id, bookings.map((b) => b.id));
+      weeksFixed++;
+    }
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  for (const week of weeks) {
+    revalidatePath(`/segunda/${week.date}`);
+    revalidatePath(`/admin/segunda/${week.date}`);
+  }
+
+  redirect(`/admin?recalculado=${weeksFixed}`);
 }
 
 // ---------- Editar reserva ----------

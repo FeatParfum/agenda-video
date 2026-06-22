@@ -306,6 +306,13 @@ export async function setWeekBlocked(date: string, blocked: boolean, reason?: st
   });
 }
 
+/** Retorna todas as semanas já criadas (usado para manutenção/backfill). */
+export async function listAllWeeks(): Promise<Week[]> {
+  const db = await getDb();
+  const res = await db.execute({ sql: "SELECT * FROM weeks ORDER BY date ASC", args: [] });
+  return res.rows as unknown as Week[];
+}
+
 export async function getWeeksBookedMinutes(
   dates: string[]
 ): Promise<Record<string, { booked: number; blocked: boolean; total: number; count: number }>> {
